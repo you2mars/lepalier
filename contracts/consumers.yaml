@@ -49,5 +49,6 @@ identity:
   utilisateur.cree: [reporting]
   utilisateur.role_change: [reporting]
   utilisateur.suspendu: [reporting]
+  utilisateur.reactive: [reporting]
 reporting:
   export.pret: []
