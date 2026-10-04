@@ -4,7 +4,7 @@ SERVICES := identity referentiel facturation charges-eau documents envois veille
 COMPOSE_DEV := docker compose -f compose.dev.yml
 DEV_CERTS ?= deploy/nginx/certs
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
-.PHONY: help doctor dev-up dev-down dev-certs logs test lint typecheck contracts docs-check migrate new-service recette tick ci
+.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service recette tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -29,6 +29,8 @@ dev-certs: ## Certificat HTTPS auto-signé de la VM de dev : make dev-certs [IP=
 	chmod 644 $(DEV_CERTS)/dev.crt && \
 	echo "Certificat créé pour https://$$ip/ (valable 365 jours) dans $(DEV_CERTS)/" && \
 	openssl x509 -in $(DEV_CERTS)/dev.crt -noout -fingerprint -sha256
+dev-secrets: ## Secrets de dev dans deploy/secrets/ (ADR 0007), jamais affichés : make dev-secrets [FORCE=1]
+	FORCE=$(FORCE) bash scripts/dev-secrets.sh
 logs: ## Logs d'un service : make logs SVC=identity
 	$(COMPOSE_DEV) logs -f $(SVC)
 
@@ -36,8 +38,9 @@ test: ## Tests : make test [SVC=nom]
 ifdef SVC
 	cd services/$(SVC) && uv run pytest
 else
-	@for s in $(SERVICES); do [ -d services/$$s ] && (cd services/$$s && uv run pytest) || true; done
-	@[ -d libs/commun/tests ] && (cd libs/commun && uv run pytest) || true
+	@set -e; for s in $(SERVICES); do if [ -d services/$$s ]; then (cd services/$$s && uv run pytest); fi; done
+	cd libs/commun && uv run pytest
+	uv run --project libs/commun pytest -q -p no:cacheprovider scripts/tests
 endif
 
 lint: ## ruff + eslint
