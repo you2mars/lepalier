@@ -37,3 +37,5 @@ Règle : un seul mot par concept, le même partout (écran, PDF, e-mail, code). 
 Statuts affichés d'un loyer du mois : « À venir », « Avis envoyé », « Payé en partie », « Payé », « En retard », « Quittance envoyée », « Annulé ».
 
 Formats : montants `1 234,56 €` (espace insécable, virgule) ; dates longues « lundi 3 novembre 2026 » dans les textes, `03/11/2026` dans les tableaux ; périodes « novembre 2026 ».
+
+Messages partagés : les textes affichés qui viennent d'un service (par exemple les refus de mot de passe) sont écrits une seule fois dans `contracts/libelles/<service>.json`, sous une clé stable (`mot_de_passe.trop_court`) ; le service et le front les lisent là, sans les recopier.

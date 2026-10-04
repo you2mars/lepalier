@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # chemins sans identité utilisateur ; identity y ajoute "/auth/"
     prefixes_publics: list[str] = ["/internal/"]
     intervalle_worker_secondes: float = 2.0
+    # textes affichés, écrits une seule fois et partagés avec le front (docs/LEXIQUE.md)
+    libelles_dir: Path = Path(__file__).resolve().parents[3] / "contracts" / "libelles"
 
 
 settings = Settings()
