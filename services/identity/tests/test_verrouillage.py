@@ -52,6 +52,11 @@ def test_couple__ordre_des_tentatives_indifferent() -> None:
     assert verrou_couple(list(reversed(_echecs(0, 1, 2, 3, 4))), _min(5)) == _min(19)
 
 
+def test_couple__echecs_pendant_le_verrou__ne_le_prolongent_pas() -> None:
+    tentatives = _echecs(0, 1, 2, 3, 4, 10, 11, 12, 13, 14)
+    assert verrou_couple(tentatives, _min(14)) == _min(19)
+
+
 def test_couple__echecs_apres_la_fin_d_un_verrou__recomptes_depuis_zero() -> None:
     tentatives = _echecs(0, 1, 2, 3, 4, 20, 21, 22, 23)
     assert verrou_couple(tentatives, _min(23)) is None
