@@ -14,6 +14,7 @@ from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.community.postgres import PostgresContainer
 
+from app.models import METADATA
 from app.settings import settings
 
 RACINE = Path(__file__).resolve().parents[1]
@@ -77,7 +78,7 @@ def base(serveur: tuple[Engine, str]) -> BaseEssai:
 def fabrique(base: BaseEssai) -> Iterator[sessionmaker[Session]]:
     proprietaire = create_engine(base.url_proprietaire)
     with proprietaire.begin() as cnx:
-        cnx.execute(text("TRUNCATE outbox, inbox, journal, job, planificateur, etat_worker"))
+        cnx.execute(text("TRUNCATE " + ", ".join(t.name for t in METADATA.sorted_tables)))
     proprietaire.dispose()
     applicatif = create_engine(base.url_applicatif)
     yield sessionmaker(applicatif, expire_on_commit=False)

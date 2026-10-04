@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session, sessionmaker
 from testcontainers.community.postgres import PostgresContainer
 
+from commun.idempotence import table_idempotence
 from commun.inbox import table_inbox
 from commun.jobs import table_job, table_planificateur
 from commun.journal import table_journal
@@ -19,6 +20,7 @@ INBOX = table_inbox(METADATA)
 JOURNAL = table_journal(METADATA)
 JOB = table_job(METADATA)
 PLANIFICATEUR = table_planificateur(METADATA)
+IDEMPOTENCE = table_idempotence(METADATA)
 EFFET = Table("effet", METADATA, Column("id", UUID(as_uuid=True), primary_key=True), Column("valeur", Text))
 
 
@@ -34,5 +36,5 @@ def moteur() -> Iterator[Engine]:
 @pytest.fixture
 def fabrique(moteur: Engine) -> sessionmaker[Session]:
     with moteur.begin() as cnx:
-        cnx.execute(text("TRUNCATE outbox, inbox, effet, journal, job, planificateur"))
+        cnx.execute(text("TRUNCATE outbox, inbox, effet, journal, job, planificateur, idempotence"))
     return sessionmaker(moteur)

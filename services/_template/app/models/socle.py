@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import Column, MetaData, Table, Text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
+from commun.idempotence import table_idempotence
 from commun.inbox import Inbox, table_inbox
 from commun.jobs import Jobs, table_job, table_planificateur
 from commun.journal import Journal, table_journal
@@ -15,6 +16,7 @@ INBOX = table_inbox(METADATA)
 JOURNAL = table_journal(METADATA)
 JOB = table_job(METADATA)
 PLANIFICATEUR = table_planificateur(METADATA)
+IDEMPOTENCE = table_idempotence(METADATA)
 # dernier passage du worker, lu par /internal/healthz (TEC-OPS-06)
 ETAT_WORKER = Table(
     "etat_worker",
