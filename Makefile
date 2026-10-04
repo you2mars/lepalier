@@ -3,6 +3,8 @@ SHELL := /bin/bash
 SERVICES := identity referentiel facturation charges-eau documents envois veille reporting
 COMPOSE_DEV := docker compose -f compose.dev.yml
 DEV_CERTS ?= deploy/nginx/certs
+# Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
+.PHONY: help doctor dev-up dev-down dev-certs logs test lint typecheck contracts docs-check migrate new-service recette tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
