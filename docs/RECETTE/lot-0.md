@@ -35,6 +35,8 @@ Environnement : VM de dev sur le réseau local, `https://<adresse IP de la VM de
 | R0-23 | — | Zoom navigateur 200 % | Aucune perte de contenu ni défilement horizontal (UX-8) | | |
 | R0-24 | — | Mot de passe faux une fois | Message sous le champ : quoi / pourquoi / que faire, sans code d'erreur (UX-5, UX-19) | | |
 | R0-25 | Tablette sur le même réseau local que la VM de dev | Ouvrir `https://<adresse IP de la VM de dev>/`, accepter le certificat auto-signé, dérouler R0-01 à R0-03 puis se déconnecter | Page de connexion atteinte sans autre réglage ; tout est lisible sans zoom en portrait et en paysage, cibles ≥ 44 px, clavier numérique pour le code, aucun défilement horizontal (UX-7, UX-8, UX-21) | | |
+| R0-26 | Téléphone, compte actif | Saisir le mot de passe au clavier du téléphone, en laissant l'espace que le clavier ajoute à la fin, puis le code de vérification | Connexion réussie : l'espace final n'empêche pas la connexion (ADR 0006) | | |
+| R0-27 | Téléphone, compte actif | Enregistrer le mot de passe dans le gestionnaire de mots de passe du téléphone à la connexion, se déconnecter, puis se reconnecter en laissant le téléphone remplir l'e-mail et le mot de passe | Le téléphone propose l'enregistrement puis le remplissage automatique ; connexion réussie (UX-7) | | |
 
 ## Test utilisateur
 Participants : — · Date : — · Tâches : (1) activer son compte depuis l'e-mail d'invitation, (2) installer l'application d'authentification et se connecter, (3) se déconnecter. Résultats : — · SUS : — · Constats : — · Décisions : —
