@@ -19,7 +19,9 @@ from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.courriels.envoi import ExpediteurSmtp
 from app.db import fabrique
+from app.jobs.courriels import gestionnaires
 from app.models import ETAT_WORKER, JOBS, OUTBOX_SVC
 from app.settings import settings
 from commun.enveloppe import Producteur
@@ -93,7 +95,13 @@ async def main() -> None:  # pragma: no cover - lancé par supervisord, couvert 
     client = await nats.connect(settings.nats_url)
     js = client.jetstream()
     await assurer_flux(js, cast(Producteur, settings.service_name))
-    worker = Worker(nom=settings.service_name, fabrique_session=fabrique(), publieur=PublieurJetStream(js))
+    expediteur = ExpediteurSmtp(settings.smtp_hote, settings.smtp_port, settings.courriel_expediteur)
+    worker = Worker(
+        nom=settings.service_name,
+        fabrique_session=fabrique(),
+        publieur=PublieurJetStream(js),
+        gestionnaires={**GESTIONNAIRES, **gestionnaires(expediteur)},
+    )
     arret = asyncio.Event()
     boucle = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):

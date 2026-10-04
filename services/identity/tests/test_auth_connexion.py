@@ -309,7 +309,8 @@ def test_code__compte_suspendu_apres_code_juste__refus_et_alerte_gerant(
     )
     assert "lp_session" not in c.cookies
     (job,) = lignes(fabrique, JOB, JOB.c.type == "courriel.alerte_compte_suspendu")
-    assert job["payload"] == {"utilisateur_id": str(compte.id)}
+    assert job["payload"]["utilisateur_id"] == str(compte.id)  # type: ignore[index]
+    assert set(job["payload"]) == {"utilisateur_id", "instant"}  # type: ignore[call-overload]
     assert all(s["etat"] == "pre_totp" and s["revoquee_le"] is not None for s in _sessions(fabrique, compte))
 
 

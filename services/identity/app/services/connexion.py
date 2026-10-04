@@ -23,7 +23,7 @@ from app.engines import codes_secours, durees, totp
 from app.engines.chiffrement import dechiffrer, pseudonymiser
 from app.engines.jetons import empreinte, nouveau_jeton
 from app.engines.mot_de_passe import hacher, rehachage_necessaire, verifier, verifier_factice
-from app.engines.verrouillage import Tentative, verrou_couple
+from app.engines.verrouillage import PERIODE_ALERTE, Tentative, alerte_compte, verrou_couple
 from app.libelles import message
 from app.models import APPAREIL, CODE_SECOURS, JOBS, JOURNAL_SVC, SESSION, TENTATIVE_CONNEXION, UTILISATEUR
 from app.securite import ClesCompte
@@ -115,6 +115,7 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
                         enregistrement_id=u["id"],
                         ip=ip,
                     )
+                    _alerter_echecs(s, u, cle_compte, maintenant)
                 refus = _refus(
                     401, "identifiants_incorrects", "connexion.identifiants_incorrects", "mot_de_passe"
                 )
@@ -260,6 +261,42 @@ def ouvrir_session(
     return jeton, nouveau_jeton_appareil
 
 
+def _alerter_echecs(s: Session, u: Any, cle_compte: bytes, maintenant: datetime) -> None:
+    """Alerte aux gérants à 20 échecs par heure sur un compte connu, toutes IP ; une par heure au plus,
+    décidée par la base pour que deux requêtes simultanées au seuil n'en envoient qu'une (ADR 0006)."""
+    t = TENTATIVE_CONNEXION
+    echecs = (
+        s.execute(
+            select(t.c.cree_le).where(
+                t.c.cle_compte == cle_compte,
+                t.c.reussie.is_(False),
+                t.c.cree_le > maintenant - PERIODE_ALERTE,
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not alerte_compte(echecs, u["derniere_alerte_echecs_le"], maintenant, compte_connu=True):
+        return
+    alerte = s.execute(
+        update(UTILISATEUR)
+        .where(
+            UTILISATEUR.c.id == u["id"],
+            (UTILISATEUR.c.derniere_alerte_echecs_le.is_(None))
+            | (UTILISATEUR.c.derniere_alerte_echecs_le <= maintenant - PERIODE_ALERTE),
+        )
+        .values(derniere_alerte_echecs_le=maintenant)
+        .returning(UTILISATEUR.c.id)
+    ).first()
+    if alerte is not None:
+        JOBS.planifier(
+            s,
+            "courriel.alerte_echecs",
+            f"{u['id']}:{maintenant.isoformat()}",
+            payload={"utilisateur_id": u["id"], "instant": maintenant},
+        )
+
+
 def _alerter_compte_suspendu(s: Session, utilisateur_id: UUID, maintenant: datetime) -> None:
     """Au plus une alerte par compte et par heure (ADR 0006), décidée par la base."""
     alerte = s.execute(
@@ -277,7 +314,7 @@ def _alerter_compte_suspendu(s: Session, utilisateur_id: UUID, maintenant: datet
             s,
             "courriel.alerte_compte_suspendu",
             f"{utilisateur_id}:{maintenant:%Y%m%d%H%M%S%f}",
-            payload={"utilisateur_id": utilisateur_id},
+            payload={"utilisateur_id": utilisateur_id, "instant": maintenant},
         )
 
 
@@ -317,6 +354,7 @@ def valider_code(
                 etape, reussi = _verifier_code(s, u, saisie, maintenant, cles)
                 if not reussi:
                     _tentative(s, cle_compte, u["id"], ip, etape, False)
+                    _alerter_echecs(s, u, cle_compte, maintenant)
                     JOURNAL_SVC.ecrire(
                         s,
                         action="connexion.echec",
