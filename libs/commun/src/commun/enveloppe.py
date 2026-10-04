@@ -18,7 +18,7 @@ Producteur = Literal[
 ]
 
 
-def _normaliser(valeur: Any, chemin: str = "payload") -> Any:
+def normaliser_json(valeur: Any, chemin: str = "payload") -> Any:
     """Rend le payload sérialisable sans perte : Decimal en chaîne à 2 décimales, dates ISO, UUID en texte."""
     if isinstance(valeur, float):
         raise ValueError(f"{chemin} : nombre flottant refusé (TEC-STK-03), utilisez Decimal")
@@ -29,9 +29,9 @@ def _normaliser(valeur: Any, chemin: str = "payload") -> Any:
     if isinstance(valeur, UUID):
         return str(valeur)
     if isinstance(valeur, dict):
-        return {str(k): _normaliser(v, f"{chemin}.{k}") for k, v in valeur.items()}
+        return {str(k): normaliser_json(v, f"{chemin}.{k}") for k, v in valeur.items()}
     if isinstance(valeur, list | tuple):
-        return [_normaliser(v, f"{chemin}[{i}]") for i, v in enumerate(valeur)]
+        return [normaliser_json(v, f"{chemin}[{i}]") for i, v in enumerate(valeur)]
     return valeur
 
 
@@ -51,7 +51,7 @@ class Enveloppe(BaseModel):
     @field_validator("payload", mode="before")
     @classmethod
     def _payload_sans_flottant(cls, valeur: Any) -> Any:
-        return _normaliser(valeur)
+        return normaliser_json(valeur)
 
     def sujet(self) -> str:
         """Sujet NATS : evt.<service>.<type>.v<n>."""
