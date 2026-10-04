@@ -15,9 +15,10 @@ Ce qui n'y entre jamais : une règle métier, un modèle de table métier, un ga
 | `identite` | `signer`/`verifier` (rotation de clé), `IdentiteMiddleware`, `identite_courante`, `exiger_role` | TEC-SEC-03, TEC-API-01 |
 | `erreurs` | `ErreurApi`, `installer_gestionnaires` : `{code, message, details, trace_id}` en français | TEC-API-03, UX-5 |
 | `origine` | `OrigineMiddleware` : refus des écritures d'une autre origine | TEC-SEC-07 |
-| `trace` | `trace_id_courant` (OpenTelemetry, sinon `X-Request-Id`) | TEC-API-06 |
+| `trace` | `TraceMiddleware` (`X-Request-Id` et `X-Trace-Id` sur chaque réponse), `trace_id_courant` (OpenTelemetry, sinon requête en cours) | TEC-API-06 |
+| `interne` | `ServiceInterneMiddleware`, `service_appelant`, `exiger_service` (jeton de service vérifié sur empreinte SHA-256) ; `ClientInterne` / `ClientInterneAsync` (`/internal/*` seulement, délai 5 s, une nouvelle tentative sur les lectures, aucune sur les écritures) | TEC-API-05, TEC-SEC-04 |
 
-Pas encore livré : client HTTP interne (`/internal/*`, jeton de service, TEC-API-05, TEC-SEC-04), prévu quand un service en aura besoin.
+Ordre des middlewares dans un service (du plus externe au plus interne) : `TraceMiddleware`, `OrigineMiddleware`, `ServiceInterneMiddleware`, `IdentiteMiddleware`. Avec Starlette, `add_middleware` place le dernier ajouté à l'extérieur : les ajouter dans l'ordre inverse.
 
 ## Tests
 `make test` (ou `cd libs/commun && uv run pytest`) ; les tests marqués `integration` démarrent PostgreSQL 16 et NATS par Testcontainers (Docker requis).
