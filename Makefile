@@ -41,10 +41,12 @@ else
 endif
 
 lint: ## ruff + eslint
+	cd libs/commun && uv run ruff check . && uv run ruff format --check .
 	@for s in $(SERVICES) ; do [ -d services/$$s ] && (cd services/$$s && uv run ruff check . && uv run ruff format --check .) || true; done
 	@[ -f front/package.json ] && (cd front && npm run lint) || true
 
-typecheck: ## mypy strict sur les moteurs, tsc sur le front
+typecheck: ## mypy strict sur commun et les moteurs, tsc sur le front
+	cd libs/commun && uv run mypy src/commun
 	@for s in $(SERVICES) ; do [ -d services/$$s/app/engines ] && (cd services/$$s && uv run mypy --strict app/engines) || true; done
 	@[ -f front/package.json ] && (cd front && npx tsc --noEmit) || true
 
