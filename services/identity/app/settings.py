@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # chemins sans identité utilisateur : /auth/* (connexion, code, liens) en plus des routes internes
     prefixes_publics: list[str] = ["/internal/", "/auth/"]
     intervalle_worker_secondes: float = 2.0
+    # e-mails de compte (ADR 0006) : Mailpit en dev, serveur SMTP de la SCI en production
+    smtp_hote: str = "mailpit"
+    smtp_port: int = 1025
+    courriel_expediteur: str = "LePalier <lepalier@localhost>"
     # textes affichés, écrits une seule fois et partagés avec le front (docs/LEXIQUE.md)
     libelles_dir: Path = Path(__file__).resolve().parents[3] / "contracts" / "libelles"
 
