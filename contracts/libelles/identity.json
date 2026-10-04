@@ -1,0 +1,10 @@
+{
+  "mot_de_passe": {
+    "trop_court": "Choisissez au moins 12 caractères. Une phrase de plusieurs mots est plus facile à retenir.",
+    "trop_long": "Ce mot de passe est trop long : 128 caractères au plus. Une phrase de quelques mots suffit.",
+    "suite_ou_repetition": "Ce mot de passe est trop facile à deviner : il répète ou enchaîne les mêmes caractères (comme « aaaa » ou « 1234 »). Choisissez plutôt une phrase de plusieurs mots.",
+    "nom_application": "Ce mot de passe est trop facile à deviner : il contient le nom de l'application. Choisissez une phrase sans « LePalier » ni « palier ».",
+    "adresse_email": "Ce mot de passe est trop facile à deviner : il contient votre adresse e-mail ou une partie de celle-ci. Choisissez une phrase sans rapport avec votre adresse.",
+    "courant": "Ce mot de passe est trop facile à deviner : il fait partie des plus utilisés. Choisissez une phrase de plusieurs mots qui vous est propre."
+  }
+}
