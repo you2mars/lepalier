@@ -1,5 +1,5 @@
 ---
-description: Démarre un lot du plan de développement : lit le lot, propose l'ordre des tâches, crée la branche et le suivi
+description: "Démarre un lot du plan de développement : lit le lot, propose l'ordre des tâches, crée la branche et le suivi"
 disable-model-invocation: true
 argument-hint: <numéro de lot>
 ---

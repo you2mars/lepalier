@@ -7,30 +7,18 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 
 ## Documents de référence (à lire avant toute tâche non triviale)
 - @docs/SYNTHESE_SPECS.md — résumé des specs (contexte, architecture, règles clés, décisions)
-- @docs/PLAN_DE_DEV.md — lots, ordre de construction, critères de sortie
 - @docs/UX_CHARTE.md — ergonomie : obligatoire pour tout écran, formulaire, message, document
-- @docs/DEFINITION_OF_DONE.md — ce qui rend un lot « terminé »
+- docs/PLAN_DE_DEV.md — lots, ordre de construction, critères de sortie (lu par `/lot`)
+- docs/DEFINITION_OF_DONE.md — ce qui rend un lot « terminé » (lu par `/dod`)
 - docs/SPEC_FONCTIONNELLE.md et docs/SPEC_TECHNIQUE.md — specs complètes (exportées des Claude Docs ; lis la section concernée, pas tout)
 - docs/LEXIQUE.md — vocabulaire métier et libellés d'interface imposés
 - docs/RECETTE/lot-N.md — recette manuelle validée par Youssef à chaque lot
 
 ## Commandes
-- `make dev-up` / `make dev-down` : plateforme locale (postgres, nats, mailpit + services)
-- `make test SVC=facturation` : tests d'un service ; `make test` : tout
-- `make lint` / `make typecheck` : ruff + mypy (services), eslint + tsc (front)
-- `make contracts` : validation des schémas d'événements et du graphe de dépendances
-- `make migrate SVC=<svc>` : `alembic upgrade head` du service
-- `make new-service NAME=<svc>` : crée un service depuis `services/_template`
-- `make recette LOT=N` : charge le jeu de données de recette du lot et affiche la checklist
-
-## Structure
-- `services/<nom>/` : un service = `app/` (api, worker, engines, services, consumers, models), `migrations/`, `tests/`, `pyproject.toml`, `Dockerfile`, `CLAUDE.md`
-- `libs/commun/` : enveloppe d'événement, outbox/inbox, middleware d'identité, décimales — aucune logique métier
-- `contracts/` : `enveloppe.schema.json`, `events/<agrégat>/<fait>.v<n>.json`, `enums.json`, `CHANGELOG.md`
-- `front/` : Next.js 15 (App Router, TypeScript), BFF vers `/api/<service>`
-- `deploy/` : Compose, nginx, Dockerfiles ; `scripts/` : outillage ; `docs/` : specs, plan, UX, recettes, ADR
+- `make help` liste toutes les cibles et leurs paramètres (`SVC=`, `LOT=`, `NAME=`).
 
 ## Conventions
+- `libs/commun/` (enveloppe, outbox/inbox, middleware d'identité, décimales) : aucune logique métier.
 - Vocabulaire métier en français (tables, événements, routes, libellés) ; technique en anglais (variables de bas niveau, bibliothèques). Référence : docs/LEXIQUE.md.
 - Montants : `Decimal` / `NUMERIC(12,2)` partout, sérialisés en chaîne dans le JSON ; jamais `float`.
 - Dates civiles en `date`, horodatages `TIMESTAMPTZ` UTC ; décisions calendaires en Europe/Paris depuis `now()` de la base.
