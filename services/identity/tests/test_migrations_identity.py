@@ -270,3 +270,58 @@ def test_droits__svc_identity__lecture_ecriture_sans_suppression_sur_les_codes(
         s.execute(text("UPDATE code_secours SET utilise_le = now() WHERE id = :id"), {"id": code})
 
     _ecrire(fabrique, creer)
+
+
+# --- 0004 : compteur de codes sur les liens de réinitialisation, alerte « compte suspendu » -----------
+
+
+def _reinitialisation(s: Session, **valeurs: Any) -> uuid.UUID:
+    ligne: dict[str, Any] = {
+        "id": uuid7(),
+        "utilisateur_id": _utilisateur(s),
+        "empreinte": os.urandom(32),
+        "expire_le": "2099-01-01",
+    }
+    ligne.update(valeurs)
+    _inserer(s, "reinitialisation", **ligne)
+    return ligne["id"]  # type: ignore[no-any-return]
+
+
+def test_reinitialisation__essais_code_zero_par_defaut(fabrique: sessionmaker[Session]) -> None:
+    def creer(s: Session) -> None:
+        lien = _reinitialisation(s)
+        assert s.scalar(text("SELECT essais_code FROM reinitialisation WHERE id = :id"), {"id": lien}) == 0
+
+    _ecrire(fabrique, creer)
+
+
+@pytest.mark.parametrize("valeur", [-1, None])
+def test_reinitialisation__essais_code_negatif_ou_nul__refuse(
+    fabrique: sessionmaker[Session], valeur: int | None
+) -> None:
+    _refuse(fabrique, lambda s: _reinitialisation(s, essais_code=valeur))
+
+
+def test_utilisateur__derniere_alerte_suspension_nulle_par_defaut(fabrique: sessionmaker[Session]) -> None:
+    def creer(s: Session) -> None:
+        uid = _utilisateur(s)
+        valeur = s.scalar(
+            text("SELECT derniere_alerte_suspension_le FROM utilisateur WHERE id = :id"), {"id": uid}
+        )
+        assert valeur is None
+
+    _ecrire(fabrique, creer)
+
+
+def test_droits__svc_identity__ecrit_essais_code_et_derniere_alerte_suspension(
+    fabrique: sessionmaker[Session],
+) -> None:
+    def ecrire(s: Session) -> None:
+        lien = _reinitialisation(s)
+        s.execute(
+            text("UPDATE reinitialisation SET essais_code = essais_code + 1 WHERE id = :id"), {"id": lien}
+        )
+        s.execute(text("UPDATE utilisateur SET derniere_alerte_suspension_le = now()"))
+        assert s.scalar(text("SELECT essais_code FROM reinitialisation WHERE id = :id"), {"id": lien}) == 1
+
+    _ecrire(fabrique, ecrire)
