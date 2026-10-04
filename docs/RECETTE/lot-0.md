@@ -25,6 +25,7 @@ Environnement : VM de dev sur le réseau local, `https://<adresse IP de la VM de
 | R0-12 | — | Avec `curl`, envoyer `X-User-Id` et `X-Role: gerant` forgés | 401/403 : les en-têtes sont écrasés par nginx (TEC-WEB-04) | | |
 | R0-13 | — | Ouvrir `/internal/healthz` depuis un poste du réseau local (via nginx) | 404 (TEC-SEC-04) | | |
 | R0-14 | Associé | Utiliser un code de secours deux fois | Première fois acceptée, seconde refusée (TEC-SEC-01) | | |
+| R0-15 | Compte associé actif | Avec `curl`, envoyer 5 mots de passe faux sur `/api/identity/auth/connexion` en ajoutant un en-tête `X-Real-IP` différent à chaque essai, puis un 6e essai avec le bon mot de passe | 6e essai refusé avec « Trop d'essais. Réessayez dans 15 minutes. » : l'en-tête forgé est ignoré et le verrou s'applique à l'adresse réelle (ADR 0006, TEC-WEB-04) | | |
 
 ## Ergonomie et accessibilité
 | ID | Pré-requis | Étapes | Résultat attendu | Validé le / par | Commentaire |
