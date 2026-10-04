@@ -150,13 +150,33 @@ def test_hachage__deux_hachages_differents_verification_ok() -> None:
     assert verifier(a, "correct cheval agrafe") and verifier(b, "correct cheval agrafe")
 
 
-def test_mot_de_passe_avec_espaces__accepte_et_verifie_tel_quel() -> None:
-    phrase = "mon chat dort sur le toit"
-    assert _motif(phrase) is None
-    hache = hacher(phrase)
-    assert verifier(hache, phrase)
+SAISIES_EQUIVALENTES = [
+    "mon chat dort sur le toit",
+    "mon  chat dort sur le toit",
+    " mon chat dort sur le toit ",
+    "mon chat\tdort   sur le toit\u00a0",
+]
+
+
+def test_mot_de_passe_avec_espaces__accepte() -> None:
+    assert _motif("mon chat dort sur le toit") is None
+
+
+@pytest.mark.parametrize("saisie", SAISIES_EQUIVALENTES)
+def test_normalisation__espaces_debut_fin_retires_interieurs_reduits_a_un(saisie: str) -> None:
+    assert verifier(hacher("mon chat dort sur le toit"), saisie)
+    assert verifier(hacher(saisie), "mon chat dort sur le toit")
+
+
+def test_normalisation__espaces_supprimes_ou_ajoutes_dans_un_mot__ne_correspond_pas() -> None:
+    hache = hacher("mon chat dort sur le toit")
     assert not verifier(hache, "monchatdortsurletoit")
-    assert not verifier(hache, "mon chat dort sur le toit ")
+    assert not verifier(hache, "mon ch at dort sur le toit")
+
+
+def test_normalisation__longueur_comptee_apres_reduction_des_espaces() -> None:
+    assert _motif("   onze caract   ") is Motif.TROP_COURT
+    assert _motif("onze  caract") is Motif.TROP_COURT
 
 
 def test_hachage__nfkc_pour_qu_une_meme_saisie_corresponde() -> None:

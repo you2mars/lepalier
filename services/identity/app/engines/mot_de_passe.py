@@ -2,8 +2,9 @@
 
 Règle NIST : 12 à 128 caractères, aucune règle de composition. Refus, dans cet ordre : trop court, trop
 long, suite ou répétition, nom de l'application, adresse e-mail (complète, ou partie locale d'au moins 4
-caractères), mot de passe courant. Le mot de passe est haché tel quel après NFKC : la suppression des espaces
-et le passage en minuscules ne servent qu'aux comparaisons. Messages affichés : contracts/libelles.
+caractères), mot de passe courant. Normalisation à la création comme à la vérification : NFKC, espaces de
+début et de fin retirés, espaces intérieurs consécutifs ramenés à un seul (ADR 0006). La suppression de tous
+les espaces et le passage en minuscules ne servent qu'aux comparaisons. Messages : contracts/libelles.
 """
 
 from __future__ import annotations
@@ -47,6 +48,11 @@ def _nfkc(texte: str) -> str:
     return unicodedata.normalize("NFKC", texte)
 
 
+def normaliser(mot_de_passe: str) -> str:
+    """Forme hachée et mesurée : NFKC, sans espaces autour, espaces intérieurs consécutifs réduits à un."""
+    return " ".join(_nfkc(mot_de_passe).split())
+
+
 def _comparable(texte: str) -> str:
     return "".join(_nfkc(texte).lower().split())
 
@@ -84,7 +90,7 @@ def _suite(compacte: str) -> bool:
 
 def motif_refus(mot_de_passe: str, email: str, courants: frozenset[str]) -> Motif | None:
     """Premier motif de refus rencontré, ou None si le mot de passe est accepté."""
-    longueur = len(_nfkc(mot_de_passe))
+    longueur = len(normaliser(mot_de_passe))
     if longueur < LONGUEUR_MIN:
         return Motif.TROP_COURT
     if longueur > LONGUEUR_MAX:
@@ -107,12 +113,12 @@ def motif_refus(mot_de_passe: str, email: str, courants: frozenset[str]) -> Moti
 
 
 def hacher(mot_de_passe: str) -> str:
-    return _HACHEUR.hash(_nfkc(mot_de_passe))
+    return _HACHEUR.hash(normaliser(mot_de_passe))
 
 
 def verifier(hache: str, mot_de_passe: str) -> bool:
     try:
-        return _HACHEUR.verify(hache, _nfkc(mot_de_passe))
+        return _HACHEUR.verify(hache, normaliser(mot_de_passe))
     except (VerifyMismatchError, VerificationError, InvalidHashError):
         return False
 
