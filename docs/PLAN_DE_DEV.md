@@ -26,7 +26,7 @@ Conforme à `SPEC_TECHNIQUE.md` § 13.2 (huit lots). Chaque lot laisse une plate
 **Tâches** : 1 lib commun + tests ; 2 gabarit de service et `make new-service` ; 3 contrats de base ; 4 identity (modèle, Argon2id, sessions, TOTP, codes de secours, invitations, rôles, journal) ; 5 nginx dev + BFF ; 6 CI GitHub ; 7 écrans connexion / TOTP / invitation / mot de passe (revue UX) ; 8 recette.
 **Tests automatisés** : commun (enveloppe, outbox relayée, inbox idempotente, HMAC), identity (verrouillage, rotation de session, TOTP fenêtre ±1, codes de secours à usage unique), nginx (en-têtes forgés refusés, 401 sans cookie), Playwright connexion.
 **Recette manuelle** : `RECETTE/lot-0.md`. **Test utilisateur** : un associé s'invite, active son compte et son TOTP sur son téléphone, se connecte, se déconnecte.
-**Sortie** : un associé peut se connecter depuis Internet (preprod) ; traces visibles ; `make test` vert.
+**Sortie** : un associé se connecte à LePalier sur la VM de dev (HTTPS auto-signé, réseau local) ; traces visibles ; `make test` vert.
 
 ### Lot 1 — referentiel + documents (≈ 10–12 j) — jalon « bail imprimé »
 **Périmètre** : `referentiel` (SCI, associés, immeuble, lots, DPE/diagnostics, locations + versions, locataires, garants, clé de répartition ; APP-REF-01…07, APP-SCI-01…04, événements `location.*`, `lot.*`, `cle.changee`, `locataire.modifie`), `documents` (registre de gabarits, WeasyPrint PDF/A, stockage par empreinte, bail vide + annexes, notice, EDL entrée/sortie, caution, grille de vétusté, attestation de dépôt, accord quittance démat., publipostage ; APP-DOC-01…08, TEC-DOC-01…10, TEC-FIL-01…04), écrans : immeuble et appartements, fiche bail, fiche locataire, génération guidée d'un document, visionneuse PDF, état des lieux mobile.
@@ -40,6 +40,7 @@ Conforme à `SPEC_TECHNIQUE.md` § 13.2 (huit lots). Chaque lot laisse une plate
 **Infrastructure** : commande du VPS Hetzner, `scripts/bootstrap-vps.sh` (Debian, LUKS, Docker, WireGuard, nftables, nginx, certbot, CrowdSec/fail2ban, runner GitHub), `compose.prod.yml`, sauvegardes (TEC-OPS-03), première restauration testée, DNS. **Mise en production** à la fin du lot avec les données réelles.
 **Tests** : propriétés et cas figés des moteurs (février bissextile, entrée le 31, surplus, annulation), idempotence des jobs, chorégraphies avec `documents` arrêté puis redémarré, routage par type et accord démat., SMTP Mailpit, droits (recommandé réservé au gérant), Playwright « marquer payé → quittance reçue ».
 **Recette** : `RECETTE/lot-2.md`. **Test utilisateur** : l'opérateur enregistre trois paiements sur mobile ; un associé lit « qui n'a pas payé » ; Youssef imprime le lot papier du mois et poste un recommandé en saisissant le numéro.
+**Recette reportée du lot 0** : accès depuis Internet et R0-09.
 **Sortie** : les avis de loyer partent automatiquement, les quittances suivent la validation manuelle, les locataires reçoivent e-mail ou papier ; prod en service.
 
 ### Lot 3 — charges-eau + veille (IRL) (≈ 10–12 j) — jalon « première régularisation »
@@ -81,7 +82,7 @@ Conforme à `SPEC_TECHNIQUE.md` § 13.2 (huit lots). Chaque lot laisse une plate
 ## 5. Jalons
 | Jalon | Lot | Ce que l'on peut faire |
 | --- | --- | --- |
-| J0 Connexion | 0 | Un associé se connecte depuis Internet (preprod) |
+| J0 Connexion | 0 | Un associé se connecte à LePalier sur la VM de dev (HTTPS auto-signé, réseau local) |
 | J1 Bail imprimé | 1 | Rédiger et imprimer un bail et ses annexes |
 | J2 Cycle mensuel en prod | 2 | Avis, paiements validés, quittances, envois papier et e-mail, sauvegardes |
 | J3 Régularisation | 3 | Relevés d'eau, charges, régularisation, révisions IRL |
@@ -94,7 +95,16 @@ Conforme à `SPEC_TECHNIQUE.md` § 13.2 (huit lots). Chaque lot laisse une plate
 _(tenu par Claude Code via `/lot` et `/dod` : date, plan, décisions, dette, résultats de recette et de test utilisateur)_
 
 ### Lot 0
-- Démarré le : —
-- Plan : —
+- Démarré le : 4 octobre 2026, branche `lot/0-plateforme`
+- Plan (ordre « contrat → migration → moteur → consommateurs/jobs → routes → écran → chorégraphie ») :
+  1. `libs/commun` : enveloppe (TEC-JOB-08), décimales (TEC-STK-03), outbox + relais et inbox (TEC-DAT-04), middleware d'identité HMAC + `require_role` (TEC-SEC-03, TEC-API-01), format d'erreur commun (TEC-API-03), contrôle `Origin` (TEC-SEC-07).
+  2. Gabarit de service complété (`journal`, `outbox`, `inbox`, `job`, healthz interne) + `make new-service`.
+  3. Contrats `utilisateur.*` (v1) + `make contracts` étendu (exemples validés, graphe sans cycle).
+  4. `identity` : migration (`utilisateur`, `session`, `code_secours`, `invitation`, `tentative_connexion`, `journal`, `outbox`) → moteurs purs (verrouillage, TOTP ±1, codes de secours, durée de session) + tests hypothesis → routes `/auth/*`, `/auth/verify`, `/users/*` → matrice des droits.
+  5. Compose dev (postgres, nats, mailpit, identity, front, nginx) ; passerelle nginx (ADR 0003) en complétant `deploy/nginx/nginx.dev.conf` : démarrage sans les services absents (résolveur Docker + upstreams en variables), `/api/identity/auth/verify` fermé au public (404), en-têtes d'identité vidés aussi vers le front, cache `auth_request` 10 s par cookie (TEC-WEB-03), `/ops` réservé aux adresses WireGuard (TEC-SEC-18), tests d'en-têtes forgés (TEC-WEB-04).
+  6. CI GitHub Actions (lint, typage, tests, contrats, build `app-base`).
+  7. Front : maquettes textuelles (revue UX) puis écrans Se connecter, Code de vérification, Activer mon compte, Codes de secours, Accueil « À faire » vide, Administration → Utilisateurs, page « réservée au gérant ».
+  8. Observabilité dev (OTel → Tempo/Loki/Grafana `/ops`), Playwright, recette (`scripts/recette/lot-0.py`).
+- Décisions (4 octobre 2026) : recette en local sur la VM de dev, accès Internet et R0-09 reportés au lot 2 ; e-mails de compte envoyés par identity, réinitialisation, verrouillage (compte, IP) et cache nginx 10 s consignés dans l'ADR 0006 ; contrats `utilisateur.cree`, `role_change`, `suspendu`, `reactive` (id, rôle, `associe_id`, nom affiché, jamais d'e-mail ni de secret) ; `associe_id` nullable sans clé étrangère, relié au lot 1.
 - Dette : —
 - Clos le : — (recette signée le —, test utilisateur le —)
