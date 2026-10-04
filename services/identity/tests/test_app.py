@@ -157,8 +157,34 @@ def _secret(dossier: Path, nom: str, contenu: str, mode: int = 0o400) -> None:
 def test_application__secrets_montes__demarre(tmp_path: Path) -> None:
     _secret(tmp_path, "cle_hmac_identite", "ab" * 32)
     _secret(tmp_path, "empreinte_facturation_vers_essai", hashlib.sha256(JETON.encode()).hexdigest())
+    _secret(tmp_path, "cle_chiffrement_identity", "1 " + "cd" * 32)
+    _secret(tmp_path, "cle_pseudonymisation_identity", "ef" * 32)
     app = application(Settings(service_name="essai", secrets_dir=tmp_path))
     assert isinstance(app, FastAPI)
+
+
+@pytest.mark.parametrize(
+    ("nom", "contenu"),
+    [
+        ("cle_chiffrement_identity", None),
+        ("cle_pseudonymisation_identity", None),
+        ("cle_pseudonymisation_identity", "zz"),
+        ("cle_pseudonymisation_identity", "ab" * 16),
+    ],
+)
+def test_application__cle_d_identity_absente_ou_illisible__refus_de_demarrer(
+    tmp_path: Path, nom: str, contenu: str | None
+) -> None:
+    _secret(tmp_path, "cle_hmac_identite", "ab" * 32)
+    _secret(tmp_path, "cle_chiffrement_identity", "1 " + "cd" * 32)
+    _secret(tmp_path, "cle_pseudonymisation_identity", "ef" * 32)
+    if contenu is None:
+        (tmp_path / nom).unlink()
+    else:
+        (tmp_path / nom).chmod(0o600)
+        (tmp_path / nom).write_text(contenu)
+    with pytest.raises(SecretInvalide):
+        application(Settings(service_name="essai", secrets_dir=tmp_path))
 
 
 def test_application__cle_hmac_absente__refus_de_demarrer(tmp_path: Path) -> None:

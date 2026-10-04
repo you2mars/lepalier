@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     secrets_dir: Path = Path("/run/secrets")
     # écritures acceptées depuis ces origines (TEC-SEC-07), ex. ["https://lepalier.exemple.fr"]
     origines_autorisees: list[str] = []
-    # chemins sans identité utilisateur ; identity y ajoute "/auth/"
-    prefixes_publics: list[str] = ["/internal/"]
+    # chemins sans identité utilisateur : /auth/* (connexion, code, liens) en plus des routes internes
+    prefixes_publics: list[str] = ["/internal/", "/auth/"]
     intervalle_worker_secondes: float = 2.0
     # textes affichés, écrits une seule fois et partagés avec le front (docs/LEXIQUE.md)
     libelles_dir: Path = Path(__file__).resolve().parents[3] / "contracts" / "libelles"

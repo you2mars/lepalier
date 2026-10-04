@@ -9,14 +9,16 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.api.auth import routeur as routeur_auth
 from app.db import fabrique
 from app.models import ETAT_WORKER, JOBS, OUTBOX
+from app.securite import ClesCompte, charger_cles
 from app.settings import Settings, settings
 from commun.erreurs import installer_gestionnaires
 from commun.identite import IdentiteMiddleware
 from commun.interne import ServiceInterneMiddleware
 from commun.origine import OrigineMiddleware
-from commun.secrets import lire_cles_hmac, lire_empreintes
+from commun.secrets import lire_empreintes
 from commun.trace import TraceMiddleware
 
 SEUIL_WORKER = timedelta(seconds=60)
@@ -28,6 +30,7 @@ def creer_app(
     empreintes: Mapping[str, bytes],
     fabrique_session: Callable[[], Session],
     reglages: Settings = settings,
+    cles: ClesCompte | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title=f"svc-{reglages.service_name}",
@@ -76,6 +79,9 @@ def creer_app(
             }
         )
 
+    app.state.fabrique = fabrique_session
+    app.state.cles = cles or ClesCompte(hmac=list(cles_hmac))
+    app.include_router(routeur_auth)
     return app
 
 
@@ -83,9 +89,11 @@ def application(reglages: Settings = settings) -> FastAPI:
     """Point d'entrée uvicorn (--factory) : lit les secrets montés ; un secret absent ou trop ouvert arrête le
     démarrage (ADR 0007)."""
     dossier = reglages.secrets_dir
+    cles = charger_cles(dossier)
     return creer_app(
-        cles_hmac=lire_cles_hmac(dossier / "cle_hmac_identite"),
+        cles_hmac=cles.hmac,
         empreintes=lire_empreintes(dossier, reglages.service_name),
         fabrique_session=fabrique(),
         reglages=reglages,
+        cles=cles,
     )
