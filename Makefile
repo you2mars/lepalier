@@ -4,7 +4,7 @@ SERVICES := identity referentiel facturation charges-eau documents envois veille
 COMPOSE_DEV := docker compose -f compose.dev.yml
 DEV_CERTS ?= deploy/nginx/certs
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
-.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service recette tick ci
+.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit recette tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -59,8 +59,9 @@ contracts: ## Valide les contrats d'événements
 docs-check: ## Vérifie la présence des specs exportées et les identifiants cités
 	python3 scripts/docs_check.py
 
-migrate: ## Migrations d'un service : make migrate SVC=nom
-	cd services/$(SVC) && uv run alembic upgrade head
+migrate: ## Migrations d'un service avec le rôle propriétaire des tables (TEC-DAT-03) : make migrate SVC=nom
+	@# en dev, rôle admin de compose.dev.yml ; ailleurs, fournir APP_MIGRATION_DATABASE_URL
+	cd services/$(SVC) && APP_MIGRATION_DATABASE_URL="$${APP_MIGRATION_DATABASE_URL:-postgresql+psycopg://admin:admin@localhost:5432/$(subst -,_,$(SVC))}" uv run alembic upgrade head
 
 new-service: ## Crée un service : make new-service NAME=nom
 	bash scripts/new-service.sh $(NAME)
@@ -71,5 +72,14 @@ recette: ## Charge le jeu de données de recette d'un lot : make recette LOT=N
 
 tick: ## Déclenche le planificateur quotidien de tous les services (recette)
 	@for s in $(SERVICES); do $(COMPOSE_DEV) exec -T $$s uv run python -m app.scheduler tick 2>/dev/null || true; done
+
+test-gabarit: ## Lint du gabarit, puis typage et tests d'un service généré dans un dossier temporaire
+	@set -e; dossier="$$(mktemp -d)/veille"; \
+	DESTINATION="$$dossier" bash scripts/new-service.sh veille >/dev/null; \
+	echo "Service d'essai généré dans $$dossier"; \
+	(cd "$$dossier" && uv sync -q --all-extras); \
+	uv run --project "$$dossier" ruff check services/_template; \
+	uv run --project "$$dossier" ruff format --check services/_template; \
+	cd "$$dossier" && uv run mypy app migrations tests && uv run pytest -p no:cacheprovider --cov-fail-under=80
 
 ci: lint typecheck contracts test ## Ce que la CI exécute
