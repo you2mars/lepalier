@@ -26,6 +26,10 @@ trap 'rm -rf "$TMP"' EXIT
 umask 077
 
 openssl rand -hex 32 > "$TMP/cle_hmac_identite"
+# identity seul (ADR 0007, complément) : chiffrement du secret TOTP, une ligne « <version> <clé> » par clé, la
+# première chiffre ; pseudonymisation des e-mails dans les tentatives de connexion
+printf '1 %s\n' "$(openssl rand -hex 32)" > "$TMP/cle_chiffrement_identity"
+openssl rand -hex 32 > "$TMP/cle_pseudonymisation_identity"
 while read -r appelant appele reste || [ -n "${appelant:-}" ]; do
   case "${appelant:-}" in "" | "#"*) continue ;; esac
   if [[ -n "${reste:-}" || "$SERVICES" != *" $appelant "* || "$SERVICES" != *" ${appele:-?} "* || "$appelant" == "$appele" ]]; then
