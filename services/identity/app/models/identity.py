@@ -53,6 +53,8 @@ UTILISATEUR = Table(
     Column("totp_secret_chiffre", BYTEA),
     Column("totp_dernier_pas", BigInteger),
     Column("derniere_alerte_echecs_le", TZ),
+    # alerte « connexion d'un compte suspendu » : au plus une par compte et par heure (0004)
+    Column("derniere_alerte_suspension_le", TZ),
     Column("origine", Text, nullable=False),
     Column("invite_par", _uuid(), ForeignKey("utilisateur.id", name="fk_utilisateur_invite_par")),
     Column("cree_le", TZ, nullable=False, server_default=func.now()),
@@ -161,7 +163,7 @@ Index(
 )
 
 
-def _lien(nom: str, *colonnes: Column[Any]) -> Table:
+def _lien(nom: str, *colonnes: Column[Any] | CheckConstraint) -> Table:
     table = Table(
         nom,
         METADATA,
@@ -194,7 +196,12 @@ INVITATION = _lien(
     "invitation",
     Column("par_utilisateur_id", _uuid(), ForeignKey("utilisateur.id", name="fk_invitation_par_utilisateur")),
 )
-REINITIALISATION = _lien("reinitialisation")
+REINITIALISATION = _lien(
+    "reinitialisation",
+    # 5 codes faux (TOTP ou secours) invalident le lien (0004)
+    Column("essais_code", SmallInteger, nullable=False, server_default="0"),
+    CheckConstraint("essais_code >= 0", name="ck_reinitialisation_essais_code"),
+)
 # au plus 3 demandes par heure et par compte
 Index(
     "ix_reinitialisation_utilisateur_cree_le", REINITIALISATION.c.utilisateur_id, REINITIALISATION.c.cree_le
