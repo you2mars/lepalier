@@ -73,6 +73,8 @@ def dossier(tmp_path: Path) -> Path:
 APPELS = "# commentaire\n\nfacturation documents\nenvois documents\n"
 ATTENDUS = {
     "cle_hmac_identite",
+    "cle_chiffrement_identity",
+    "cle_pseudonymisation_identity",
     "jeton_facturation_vers_documents",
     "empreinte_facturation_vers_documents",
     "jeton_envois_vers_documents",
@@ -102,6 +104,20 @@ def test_dev_secrets__valeurs_jamais_affichees_et_bien_formees(dossier: Path) ->
     assert empreinte.strip() == hashlib.sha256(jeton.encode()).hexdigest()
     for valeur in (cle.strip(), jeton, empreinte.strip()):
         assert valeur not in sortie
+
+
+def test_dev_secrets__cles_identity_bien_formees_et_jamais_affichees(dossier: Path) -> None:
+    r = _generer(dossier, APPELS)
+    chiffrement = _lire_en_tant_que(10001, dossier / "cle_chiffrement_identity")
+    pseudonymisation = _lire_en_tant_que(10001, dossier / "cle_pseudonymisation_identity")
+    assert chiffrement is not None and pseudonymisation is not None
+    version, cle = chiffrement.split()
+    assert version == "1"
+    assert len(bytes.fromhex(cle)) == 32
+    assert len(bytes.fromhex(pseudonymisation.strip())) == 32
+    assert cle != pseudonymisation.strip()
+    for valeur in (cle, pseudonymisation.strip()):
+        assert valeur not in r.stdout + r.stderr
 
 
 def test_dev_secrets__uid_10001_lit_les_autres_non(dossier: Path) -> None:
