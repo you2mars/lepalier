@@ -29,6 +29,17 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 - Python : ruff (format + lint), mypy strict sur `app/engines`, pytest + hypothesis pour les moteurs.
 - Commits : Conventional Commits en français (`feat(facturation): …`), un lot = une branche `lot/N-nom`.
 
+## Décisions figées (ne pas rouvrir sans demander)
+- Architecture : microservices (8 services, une base PostgreSQL par service, copies locales ref_*), ADR 0001.
+- Bus : NATS JetStream, outbox/inbox. Pas de RabbitMQ, Kafka ni Redis.
+- Passerelle et frontal Internet : nginx (auth_request vers identity, TLS Let's Encrypt, limites de débit, en-têtes de sécurité), ADR 0003. Pas de Traefik, Caddy ni Kong.
+- Hébergement : VPS Hetzner CPX32 dédié, données sur volume LUKS à déverrouillage manuel via WireGuard, ADR 0002. Pas de Tang/Clevis.
+- Livraison : GitHub privé, images dans GHCR, runner auto-hébergé sur le VPS en mode pull, jamais de SSH entrant depuis la CI, ADR 0004.
+- Front : Next.js 15 en BFF. Services : Python 3.12, FastAPI, SQLAlchemy 2, Alembic.
+- Second facteur : TOTP en v1.
+- Décisions encore ouvertes (poser la question à Youssef, ne pas trancher seul) : bannissement (CrowdSec ou fail2ban), WAF, certificats DNS-01 ou HTTP-01, seconde cible de sauvegarde, collecteur PISTE, résumé de veille par modèle local, offre La Poste v2, environnement de préproduction (second VPS Hetzner temporaire ou VM Proxmox, décision n° 15 de SPEC_TECHNIQUE § 14, à trancher avant le lot 2).
+- Toute proposition qui contredit une décision figée passe par une question à Youssef puis un nouvel ADR dans docs/ADR/, jamais par un choix silencieux.
+
 ## Règles absolues
 1. Jamais de secret dans le dépôt (.env, clés, mots de passe) ; ne lis pas les fichiers `.env*`.
 2. Ne jamais contourner la machine à états des échéances : `payee` n'existe que dans la saisie de paiement.
