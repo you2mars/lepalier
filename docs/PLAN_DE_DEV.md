@@ -109,5 +109,6 @@ _(tenu par Claude Code via `/lot` et `/dod` : date, plan, décisions, dette, ré
 - Décisions étape 1 `commun` (4 octobre 2026) : accès base synchrones (SQLAlchemy `Session`), appelés par `asyncio.to_thread` depuis les callbacks NATS et le relais outbox ; validité des en-têtes d'identité signés fixée à 60 s dans identity (bien au-delà du cache nginx de 10 s) ; écritures sans en-tête `Origin` acceptées (BFF, ligne de commande), écritures inter-sites refusées.
 - Dette :
   - Quarantaine minimale des événements (table `quarantaine` + tâche « À faire » au gérant) : aujourd'hui `term` + journal d'erreur, message conservé dans le flux. **À livrer avant le lot 2.**
+  - Stockage des secrets de service (ADR 0007) : fichiers montés par Compose, 10001:10001 en 0400. **Avant la mise en production du lot 2**, décider entre les fichiers sur volume LUKS comme solution définitive (avec mise à jour de TEC-SEC-04 et TEC-SEC-08) et le coffre chiffré en base (TEC-SEC-08).
   - ~~Client HTTP interne `/internal/*` avec jeton de service (TEC-API-05, TEC-SEC-04) et en-têtes `X-Request-Id` / `trace_id` sur chaque réponse (TEC-API-06)~~ : soldée à l'étape 2 (4 octobre 2026, `libs/commun` : `interne`, `TraceMiddleware`).
 - Clos le : — (recette signée le —, test utilisateur le —)
