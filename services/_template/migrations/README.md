@@ -1,0 +1,1 @@
+Migrations Alembic du service. Une migration par changement, réversible, non destructive (expansion puis contraction à la livraison suivante). `env.py` est généré par `alembic init` au lot 0 puis adapté pour lire `APP_DATABASE_URL`.

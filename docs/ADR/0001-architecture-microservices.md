@@ -1,0 +1,3 @@
+# ADR 0001 — Architecture en microservices (3 octobre 2026)
+
+Statut : accepté. Contexte : app personnelle de gestion locative (~20 lots), surcoût assumé des microservices à cette échelle (voir avertissement § 1 de la spec technique). Décision : 8 services (identity, referentiel, facturation, charges-eau, documents, envois, veille, reporting), une base par service, bus NATS JetStream, outbox/inbox, nginx en passerelle. Conséquences : contrats d'événements versionnés, rapprochement quotidien de cohérence, observabilité distribuée obligatoire. Alternative gardée en réserve : monolithe modulaire (version précédente de la spec).

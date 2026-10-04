@@ -1,0 +1,25 @@
+# secrets et environnement
+.env
+.env.*
+!.env.example
+deploy/secrets/
+deploy/nginx/certs/
+# Claude Code (personnel)
+.claude/settings.local.json
+CLAUDE.local.md
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+# node
+node_modules/
+front/.next/
+front/out/
+# divers
+*.log
+.DS_Store

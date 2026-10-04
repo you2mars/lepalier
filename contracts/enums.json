@@ -1,0 +1,12 @@
+{
+  "statut_echeance": ["a_venir", "emise", "partielle", "payee", "en_retard", "quittancee", "annulee"],
+  "type_bail": ["vide", "meuble"],
+  "mode_charges": ["provision", "forfait", "justificatifs"],
+  "canal": ["email", "papier", "les_deux"],
+  "niveau_service_postal": ["simple", "suivi", "lrar"],
+  "statut_envoi": ["prepare", "depose", "en_cours", "distribue", "avise", "retourne", "echec"],
+  "role": ["gerant", "associe", "operateur"],
+  "nature_charge": ["eau", "electricite_communs", "entretien_nettoyage", "ascenseur", "espaces_verts", "teom", "contrat_entretien", "autre_recuperable", "non_recuperable"],
+  "type_document": ["bail", "notice", "edl_entree", "edl_sortie", "inventaire", "caution", "grille_vetuste", "attestation_depot", "accord_demat", "avenant", "avis_echeance", "quittance", "recu", "attestation_loyer", "revision", "regularisation", "demande_assurance", "demande_chaudiere", "relance", "mise_en_demeure", "commandement", "conge", "attestation_fin_bail", "restitution_depot", "lot_impression"],
+  "qualification_veille": ["a_lire", "sans_impact", "impact_gabarits", "impact_parametres", "impact_calendrier"]
+}

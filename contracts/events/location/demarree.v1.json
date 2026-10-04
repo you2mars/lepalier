@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sci-gestion-locative/contracts/events/location/demarree.v1.json",
+  "title": "location.demarree v1",
+  "description": "Une location (bail) démarre sur un lot. Publié par referentiel. Les montants sont figés en chaînes décimales.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["location_id", "lot_id", "lot_numero", "type_bail", "date_effet", "duree_mois", "loyer_hc", "mode_charges", "charges_mensuelles", "depot_garantie", "jour_echeance", "locataires", "locataire_principal_id"],
+  "properties": {
+    "location_id": { "type": "string", "format": "uuid" },
+    "lot_id": { "type": "string", "format": "uuid" },
+    "lot_numero": { "type": "string" },
+    "type_bail": { "type": "string", "enum": ["vide", "meuble"] },
+    "date_effet": { "type": "string", "format": "date" },
+    "duree_mois": { "type": "integer", "minimum": 1 },
+    "loyer_hc": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+    "mode_charges": { "type": "string", "enum": ["provision", "forfait", "justificatifs"] },
+    "charges_mensuelles": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+    "depot_garantie": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+    "jour_echeance": { "type": "integer", "minimum": 1, "maximum": 28 },
+    "irl_trimestre_ref": { "type": ["string", "null"], "pattern": "^\\d{4}T[1-4]$" },
+    "date_revision": { "type": ["string", "null"], "format": "date" },
+    "locataire_principal_id": { "type": "string", "format": "uuid" },
+    "locataires": {
+      "type": "array", "minItems": 1,
+      "items": { "type": "object", "additionalProperties": false, "required": ["locataire_id", "nom_affiche", "canal"],
+        "properties": {
+          "locataire_id": { "type": "string", "format": "uuid" },
+          "nom_affiche": { "type": "string" },
+          "canal": { "type": "string", "enum": ["email", "papier", "les_deux"] },
+          "accord_quittance_demat": { "type": "boolean", "default": false }
+        } }
+    }
+  },
+  "examples": [
+    {
+      "location_id": "0192f3a4-5b6c-7d8e-9f01-234567890abc",
+      "lot_id": "0192f3a4-5b6c-7d8e-9f01-234567890abd",
+      "lot_numero": "12",
+      "type_bail": "vide",
+      "date_effet": "2026-11-01",
+      "duree_mois": 36,
+      "loyer_hc": "650.00",
+      "mode_charges": "provision",
+      "charges_mensuelles": "80.00",
+      "depot_garantie": "650.00",
+      "jour_echeance": 1,
+      "irl_trimestre_ref": "2026T2",
+      "date_revision": "2027-11-01",
+      "locataire_principal_id": "0192f3a4-5b6c-7d8e-9f01-234567890abe",
+      "locataires": [{ "locataire_id": "0192f3a4-5b6c-7d8e-9f01-234567890abe", "nom_affiche": "Mme Léa Martin", "canal": "email", "accord_quittance_demat": true }]
+    }
+  ]
+}

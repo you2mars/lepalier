@@ -1,0 +1,25 @@
+[project]
+name = "svc-__SERVICE__"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.9",
+  "pydantic-settings>=2.5",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.2",
+  "alembic>=1.13",
+  "nats-py>=2.9",
+  "commun",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-cov", "hypothesis>=6", "httpx", "testcontainers[postgres]", "mypy", "ruff"]
+
+[tool.uv.sources]
+commun = { path = "../../libs/commun", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --cov=app --cov-report=term-missing"

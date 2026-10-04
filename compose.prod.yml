@@ -1,0 +1,11 @@
+# Production (VPS Hetzner) — squelette à compléter au lot 2 (TEC-OPS § 12). Secrets via /run/secrets, données sur /srv/app (LUKS).
+# Services attendus : nginx, certbot, crowdsec(+bouncer), front, identity, referentiel, facturation, charges-eau, documents, envois,
+# veille, reporting, nats, postgres, otel-collector, tempo, prometheus, loki, grafana, nginx-exporter, node-exporter, gh-runner.
+# Réseaux : edge, backend, egress-mail, egress-web, egress-laposte (TEC-SEC-06).
+name: lepalier
+services: {}
+networks:
+  edge: {}
+  backend: { internal: true }
+  egress-mail: {}
+  egress-web: {}

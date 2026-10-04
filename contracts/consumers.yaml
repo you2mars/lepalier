@@ -1,0 +1,53 @@
+# producteur -> événement -> consommateurs.
+# `consumers` = consommateurs qui réagissent (peuvent publier à leur tour) : ces arêtes ne doivent former aucun cycle.
+# `ack` = consommateurs « retour » qui ne font que clore un état chez le producteur amont (ex. facturation passe `quittancee`
+#   sur document.emis) et ne publient rien en réaction : exclus du contrôle de cycle, vérifiés en revue (gardien-contrats).
+referentiel:
+  location.demarree: [facturation, charges-eau, documents, reporting]
+  location.version_changee: [facturation, charges-eau, documents, reporting]
+  location.terminee: [facturation, charges-eau, documents, reporting]
+  locataire.modifie: [documents, envois, reporting]
+  lot.modifie: [charges-eau, documents, reporting]
+  diagnostic.enregistre: [documents, reporting]
+  cle.changee: [charges-eau, reporting]
+  demande.attestation: [documents, reporting]
+facturation:
+  echeance.emise: [documents, reporting]
+  echeance.payee: [documents, reporting]
+  echeance.partielle: [documents, reporting]
+  echeance.en_retard: [reporting]
+  paiement.saisi: [documents, reporting]
+  revision.preparee: [reporting]
+  revision.appliquee:
+    consumers: [documents, reporting]
+    ack: [referentiel]
+charges-eau:
+  releve.saisi: [reporting]
+  facture.enregistree: [reporting]
+  charge.enregistree: [reporting]
+  regularisation.preparee: [reporting]
+  regularisation.emise: [facturation, documents, reporting]
+  conso.alerte: [reporting]
+documents:
+  document.emis:
+    consumers: [envois, reporting]
+    ack: [referentiel, facturation]
+  document.annule:
+    consumers: [envois, reporting]
+    ack: [facturation]
+  fichier.importe: [reporting]
+envois:
+  envoi.prepare: [reporting]
+  envoi.statut_change: [reporting]
+  envoi.preuve_recue: [reporting]
+  envoi.cout_connu: [reporting]
+veille:
+  irl.publie: [facturation, reporting]
+  veille.alerte: [reporting]
+  veille.qualifiee: [documents, reporting]
+identity:
+  utilisateur.cree: [reporting]
+  utilisateur.role_change: [reporting]
+  utilisateur.suspendu: [reporting]
+reporting:
+  export.pret: []

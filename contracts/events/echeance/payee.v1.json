@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sci-gestion-locative/contracts/events/echeance/payee.v1.json",
+  "title": "echeance.payee v1",
+  "description": "Une échéance est intégralement payée (transition payee de la machine à états, uniquement par saisie de paiement). Publié par facturation ; documents produit la quittance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["echeance_id", "location_id", "lot_numero", "periode_debut", "periode_fin", "loyer_du", "charges_dues", "rappel_du", "total_du", "paiements", "date_paiement_solde"],
+  "properties": {
+    "echeance_id": { "type": "string", "format": "uuid" },
+    "location_id": { "type": "string", "format": "uuid" },
+    "lot_numero": { "type": "string" },
+    "periode_debut": { "type": "string", "format": "date" },
+    "periode_fin": { "type": "string", "format": "date" },
+    "loyer_du": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+    "charges_dues": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+    "rappel_du": { "type": "string", "pattern": "^-?\\d+\\.\\d{2}$" },
+    "total_du": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+    "date_paiement_solde": { "type": "string", "format": "date" },
+    "paiements": {
+      "type": "array", "minItems": 1,
+      "items": { "type": "object", "additionalProperties": false, "required": ["paiement_id", "date", "montant", "mode"],
+        "properties": {
+          "paiement_id": { "type": "string", "format": "uuid" },
+          "date": { "type": "string", "format": "date" },
+          "montant": { "type": "string", "pattern": "^\\d+\\.\\d{2}$" },
+          "mode": { "type": "string", "enum": ["virement", "cheque", "especes", "prelevement", "autre"] },
+          "payeur": { "type": "string", "enum": ["locataire", "garant", "autre"], "default": "locataire" }
+        } }
+    }
+  },
+  "examples": [
+    {
+      "echeance_id": "0192f3a4-5b6c-7d8e-9f01-234567890b01",
+      "location_id": "0192f3a4-5b6c-7d8e-9f01-234567890abc",
+      "lot_numero": "12",
+      "periode_debut": "2026-11-01",
+      "periode_fin": "2026-11-30",
+      "loyer_du": "650.00",
+      "charges_dues": "80.00",
+      "rappel_du": "0.00",
+      "total_du": "730.00",
+      "date_paiement_solde": "2026-11-03",
+      "paiements": [{ "paiement_id": "0192f3a4-5b6c-7d8e-9f01-234567890b02", "date": "2026-11-03", "montant": "730.00", "mode": "virement", "payeur": "locataire" }]
+    }
+  ]
+}

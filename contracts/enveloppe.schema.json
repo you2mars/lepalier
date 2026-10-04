@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sci-gestion-locative/contracts/enveloppe.schema.json",
+  "title": "Enveloppe d'événement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "version", "occurred_at", "producer", "aggregate_id", "trace_id", "payload"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "description": "UUID v7 de l'événement" },
+    "type": { "type": "string", "pattern": "^[a-z_]+\\.[a-z_]+$", "description": "<agrégat>.<fait> au passé, ex. echeance.payee" },
+    "version": { "type": "integer", "minimum": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "producer": { "type": "string", "enum": ["identity", "referentiel", "facturation", "charges-eau", "documents", "envois", "veille", "reporting"] },
+    "aggregate_id": { "type": "string", "format": "uuid" },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "causation_id": { "type": ["string", "null"], "format": "uuid" },
+    "payload": { "type": "object" }
+  }
+}

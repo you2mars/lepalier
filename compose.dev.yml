@@ -1,0 +1,31 @@
+# Plateforme de développement (TEC-OPS-10 "dev") : infrastructure + services au fur et à mesure des lots.
+name: lepalier-dev
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: admin
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U admin"], interval: 5s, timeout: 3s, retries: 20 }
+  nats:
+    image: nats:2
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    volumes: [natsdata:/data]
+    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8222:8222"]
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"], interval: 5s, timeout: 3s, retries: 20 }
+  mailpit:
+    image: axllent/mailpit
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+  # nginx + front + services : décommenter au lot 0 (identity) puis à chaque /nouveau-service
+  # identity:
+  #   build: { context: ., dockerfile: services/identity/Dockerfile }
+  #   environment: { APP_ENV: dev, APP_DATABASE_URL: "postgresql+psycopg://svc_identity:changeme@postgres:5432/identity", APP_NATS_URL: "nats://nats:4222" }
+  #   depends_on: { postgres: { condition: service_healthy }, nats: { condition: service_healthy } }
+volumes:
+  pgdata: {}
+  natsdata: {}
