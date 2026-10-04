@@ -21,6 +21,7 @@ from commun.identite import (
     verifier,
 )
 from commun.ids import uuid7
+from commun.interne import ServiceInterneMiddleware, empreinte_jeton, service_appelant
 
 CLE = b"k" * 32
 ANCIENNE_CLE = b"o" * 32
@@ -150,6 +151,40 @@ CLIENT = TestClient(_app())
 
 def test_middleware__routes_internes_sans_identite() -> None:
     assert CLIENT.get("/internal/healthz").status_code == 200
+
+
+@pytest.mark.parametrize("chemin", ["/internal/ref/lots", "/internal/files/abc"])
+def test_middleware__toute_route_internal__non_bloquee(chemin: str) -> None:
+    app = FastAPI()
+    app.add_middleware(IdentiteMiddleware, cles=[CLE])
+
+    @app.get("/internal/{reste:path}")
+    def interne(reste: str) -> dict[str, str]:
+        return {"reste": reste}
+
+    assert TestClient(app).get(chemin).status_code == 200
+
+
+def test_middleware__chemin_voisin_de_internal__protege() -> None:
+    assert CLIENT.get("/internalx/lots").status_code == 401
+
+
+def test_middleware__empile_avec_service_interne__appel_interne_sans_identite_utilisateur() -> None:
+    app = FastAPI()
+    installer_gestionnaires(app)
+    app.add_middleware(IdentiteMiddleware, cles=[CLE])
+    app.add_middleware(ServiceInterneMiddleware, empreintes={"facturation": empreinte_jeton("j")})
+
+    @app.get("/internal/ref/lots")
+    def lots(appelant: str = Depends(service_appelant)) -> dict[str, str]:
+        return {"appelant": appelant}
+
+    client = TestClient(app)
+    r = client.get(
+        "/internal/ref/lots", headers={"X-Service-Appelant": "facturation", "Authorization": "Bearer j"}
+    )
+    assert r.json() == {"appelant": "facturation"}
+    assert client.get("/internal/ref/lots").status_code == 401
 
 
 def test_middleware__sans_entetes__401_format_commun() -> None:
