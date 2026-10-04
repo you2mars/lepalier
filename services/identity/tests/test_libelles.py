@@ -168,24 +168,40 @@ def test_message__cle_inconnue__erreur_de_programmation() -> None:
 # Une clé du fichier pas encore utilisée par le code doit figurer dans EN_ATTENTE ; la retirer dès que le
 # service qui l'utilise arrive (le test le signale).
 
-EN_ATTENTE = set(AUTRES_MESSAGES)
+UTILISEES_PAR_LA_CONNEXION = {
+    "connexion.identifiants_incorrects",
+    "connexion.trop_d_essais",
+    "connexion.compte_suspendu",
+    "code.incorrect",
+    "code.delai_depasse",
+    "code.trop_de_codes",
+}
+EN_ATTENTE = set(AUTRES_MESSAGES) - UTILISEES_PAR_LA_CONNEXION
 APP = Path(__file__).resolve().parents[1] / "app"
 
 
+# fonctions du code qui reçoivent une clé de libellé ; à compléter quand un service en ajoute une
+FONCTIONS_LIBELLES = {"message", "_refus"}
+
+
 def _cles_utilisees_par_le_code() -> set[str]:
-    """Clés littérales passées à `message(...)` dans app/, plus les clés construites depuis Motif."""
+    """Chaînes « groupe.nom » passées à une fonction de FONCTIONS_LIBELLES dans app/, plus les clés tirées de
+    Motif ; les actions du journal (« connexion.reussie ») ne sont pas des libellés."""
     cles = {f"mot_de_passe.{m.value}" for m in Motif}
     for fichier in APP.rglob("*.py"):
         for noeud in ast.walk(ast.parse(fichier.read_text())):
             if (
                 isinstance(noeud, ast.Call)
                 and isinstance(noeud.func, ast.Name)
-                and noeud.func.id == "message"
-                and noeud.args
-                and isinstance(noeud.args[0], ast.Constant)
-                and isinstance(noeud.args[0].value, str)
+                and noeud.func.id in FONCTIONS_LIBELLES
             ):
-                cles.add(noeud.args[0].value)
+                for argument in noeud.args:
+                    if (
+                        isinstance(argument, ast.Constant)
+                        and isinstance(argument.value, str)
+                        and "." in argument.value
+                    ):
+                        cles.add(argument.value)
     return cles
 
 
