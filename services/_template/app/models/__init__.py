@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from app.models.socle import (
     ETAT_WORKER,
+    IDEMPOTENCE,
     INBOX,
     INBOX_SVC,
     JOB,
@@ -19,6 +20,7 @@ from app.models.socle import (
 
 __all__ = [
     "ETAT_WORKER",
+    "IDEMPOTENCE",
     "INBOX",
     "INBOX_SVC",
     "JOB",

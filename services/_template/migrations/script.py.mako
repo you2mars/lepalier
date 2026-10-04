@@ -22,7 +22,8 @@ depends_on: str | Sequence[str] | None = ${repr(depends_on)}
 
 def upgrade() -> None:
     ${upgrades if upgrades else "pass"}
-    # Droits du rôle applicatif sur chaque nouvelle table (TEC-DAT-03) : lecture_ecriture, ajout_seul (journal).
+    # Droits du rôle applicatif sur chaque nouvelle table (TEC-DAT-03) : lecture_ecriture, sans_suppression
+    # (suppression logique), ajout_seul (journal).
 
 
 def downgrade() -> None:

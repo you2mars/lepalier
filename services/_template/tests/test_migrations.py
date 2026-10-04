@@ -4,18 +4,18 @@ import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import Engine, create_engine, inspect, text
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy import Engine, create_engine, func, inspect, text
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import JOURNAL, METADATA, OUTBOX
+from app.models import IDEMPOTENCE, JOURNAL, METADATA, OUTBOX
 from commun.ids import uuid7
 
 from .conftest import BaseEssai, config_alembic, creer_base
 
 pytestmark = pytest.mark.integration
 
-TABLES_SOCLE = {"outbox", "inbox", "journal", "job", "planificateur", "etat_worker"}
+TABLES_SOCLE = {"outbox", "inbox", "journal", "job", "planificateur", "etat_worker", "idempotence"}
 
 
 def test_migrations__base_vide__montee_descente_remontee(serveur: tuple[Engine, str]) -> None:
@@ -70,7 +70,49 @@ def test_droits__role_applicatif__lecture_ecriture_sur_les_autres_tables_du_socl
     fabrique: sessionmaker[Session],
 ) -> None:
     with fabrique() as s, s.begin():
-        for table in ("outbox", "inbox", "job", "planificateur", "etat_worker"):
+        for table in ("outbox", "inbox", "job", "planificateur", "etat_worker", "idempotence"):
             s.execute(text(f"SELECT 1 FROM {table} LIMIT 1"))
             s.execute(text(f"DELETE FROM {table}"))
         s.execute(OUTBOX.update().values(relaye_le=None))
+
+
+# --- idempotence (TEC-API-02) ------------------------------------------------------------------------
+
+
+def _reserver(s: Session, cle: object, **valeurs: object) -> None:
+    ligne: dict[str, object] = {
+        "portee": "utilisateur:1",
+        "cle": cle,
+        "route": "POST /essai",
+        "empreinte_requete": b"\x00" * 32,
+        "expire_le": func.now() + text("interval '24 hours'"),
+    }
+    s.execute(IDEMPOTENCE.insert().values(**{**ligne, **valeurs}))
+
+
+def test_idempotence__reservation__unique_par_portee_et_cle(fabrique: sessionmaker[Session]) -> None:
+    cle = uuid7()
+    with fabrique() as s, s.begin():
+        _reserver(s, cle)
+    with pytest.raises(IntegrityError), fabrique() as s, s.begin():
+        _reserver(s, cle)
+
+
+@pytest.mark.parametrize(
+    "valeurs",
+    [
+        {"statut": "inconnu"},
+        {"statut": "terminee"},
+        {"empreinte_requete": b"court"},
+    ],
+)
+def test_idempotence__ligne_incoherente__refusee_par_la_base(
+    fabrique: sessionmaker[Session], valeurs: dict[str, object]
+) -> None:
+    with pytest.raises(IntegrityError), fabrique() as s, s.begin():
+        _reserver(s, uuid7(), **valeurs)
+
+
+def test_idempotence__terminee_avec_reponse__acceptee(fabrique: sessionmaker[Session]) -> None:
+    with fabrique() as s, s.begin():
+        _reserver(s, uuid7(), statut="terminee", statut_http=201, reponse={"id": "x"})
