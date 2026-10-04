@@ -15,11 +15,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-cov", "hypothesis>=6", "httpx", "testcontainers[postgres]", "mypy", "ruff"]
+test = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "pytest-cov",
+  "hypothesis>=6",
+  "httpx",
+  "testcontainers[postgres]>=4.8",
+  "mypy",
+  "ruff",
+]
 
 [tool.uv.sources]
 commun = { path = "../../libs/commun", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = "-q --cov=app --cov-report=term-missing"
+markers = ["integration: nécessite Docker (PostgreSQL via Testcontainers)"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
