@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import IntegrityError, ProgrammingError
+from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, sessionmaker
 
 from commun.ids import uuid7
@@ -325,3 +325,53 @@ def test_droits__svc_identity__ecrit_essais_code_et_derniere_alerte_suspension(
         assert s.scalar(text("SELECT essais_code FROM reinitialisation WHERE id = :id"), {"id": lien}) == 1
 
     _ecrire(fabrique, ecrire)
+
+
+# --- 0005 : nom affiché sans caractère de contrôle (injection de lignes dans les e-mails) -------------
+
+
+@pytest.mark.parametrize(
+    "nom",
+    [
+        "Mme Durand\nObjet : faux",
+        "Mme\rDurand",
+        "Mme\tDurand",
+        "Mme\x1fDurand",
+        "Mme\x7fDurand",
+        "Mme\x80Durand",
+        "Mme\x85Durand",
+        "Mme\x9fDurand",
+        "Mme\u2028Durand",
+        "Mme\u2029Durand",
+        "\u202aMme Durand",
+        "Mme \u202eDurand",
+        "\u2066Mme Durand",
+        "Mme Durand\u2069",
+    ],
+)
+def test_utilisateur__nom_affiche_avec_caractere_de_controle__refuse_par_la_base(
+    fabrique: sessionmaker[Session], nom: str
+) -> None:
+    _refuse(fabrique, lambda s: _utilisateur(s, nom_affiche=nom))
+
+
+def test_utilisateur__nom_affiche_avec_octet_nul__refuse_par_postgresql(
+    fabrique: sessionmaker[Session],
+) -> None:
+    _refuse(fabrique, lambda s: _utilisateur(s, nom_affiche="Mme\x00Durand"), DBAPIError)
+
+
+@pytest.mark.parametrize(
+    "nom",
+    [
+        "Mme Durand",
+        "Jean-Pierre O'Neil",
+        "Élodie Gérante",
+        "D'Aragon Ç",
+        "Mme\xa0Durand",
+        "Mme\u202fDurand",
+        "Mme\u2070",
+    ],
+)
+def test_utilisateur__nom_affiche_ordinaire__accepte(fabrique: sessionmaker[Session], nom: str) -> None:
+    _ecrire(fabrique, lambda s: _utilisateur(s, nom_affiche=nom))

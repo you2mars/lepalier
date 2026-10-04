@@ -72,6 +72,11 @@ UTILISATEUR = Table(
         name="ck_utilisateur_actif_complet",
     ),
     CheckConstraint("origine = 'commande_locale' OR invite_par IS NOT NULL", name="ck_utilisateur_invitant"),
+    # 0005 : un retour à la ligne pourrait injecter des lignes dans les e-mails aux gérants
+    CheckConstraint(
+        r"nom_affiche !~ '[\x01-\x1f\x7f-\x9f\u2028-\u202e\u2066-\u2069]'",
+        name="ck_utilisateur_nom_affiche_sans_controle",
+    ),
     CheckConstraint(
         "totp_secret_chiffre IS NULL OR "
         "(octet_length(totp_secret_chiffre) >= 49 AND get_byte(totp_secret_chiffre, 0) >= 1)",
