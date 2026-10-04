@@ -82,13 +82,43 @@ def test_contrat_utilisateur_role_change__porte_l_ancien_role() -> None:
 
 
 @pytest.mark.parametrize("fait", FAITS_UTILISATEUR)
-@pytest.mark.parametrize("nom", ["jean.dupont@exemple.fr", "a@b", "", " ", "   \t", "x" * 61])
+@pytest.mark.parametrize(
+    "nom",
+    [
+        "jean.dupont@exemple.fr",
+        "a@b",
+        "",
+        " ",
+        "   \t",
+        "x" * 61,
+        "Mme Durand\nObjet : faux",
+        "Mme\rDurand",
+        "Mme\tDurand",
+        "Mme\x00Durand",
+        "Mme\x1fDurand",
+        "Mme\x7fDurand",
+        "Mme\x80Durand",
+        "Mme\x85Durand",
+        "Mme\x9fDurand",
+        "Mme\u2028Durand",
+        "Mme\u2029Durand",
+        "\u202aMme Durand",
+        "Mme \u202eDurand",
+        "\u2066Mme Durand",
+        "Mme Durand\u2069",
+        "Mme Durand\n",
+        "0\n",
+    ],
+)
 def test_contrat_utilisateur__nom_affiche_email_vide_ou_trop_long__refuse(fait: str, nom: str) -> None:
     exemple = {**_schema(fait)["examples"][0], "nom_affiche": nom}
     assert list(_validateur(fait).iter_errors(exemple)) != []
 
 
-@pytest.mark.parametrize("nom", ["Mme Durand", "Jean-Pierre O'Neil", "É", "x" * 60])
+@pytest.mark.parametrize(
+    "nom",
+    ["Mme Durand", "Jean-Pierre O'Neil", "É", "x" * 60, "Mme\xa0Durand", "Mme\u202fDurand", "Mme\u2070"],
+)
 def test_contrat_utilisateur__nom_affiche_ordinaire__accepte(nom: str) -> None:
     exemple = {**_schema("cree")["examples"][0], "nom_affiche": nom}
     assert list(_validateur("cree").iter_errors(exemple)) == []
