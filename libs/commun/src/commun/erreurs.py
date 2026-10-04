@@ -45,7 +45,11 @@ class ErreurApi(Exception):
 
 
 def trace_id_de(scope: Scope) -> str:
-    """trace_id de la requête : trace OpenTelemetry active, sinon X-Request-Id posé par nginx."""
+    """trace_id de la requête : celui de `TraceMiddleware` (identique à l'en-tête `X-Trace-Id`), sinon trace
+    OpenTelemetry active, sinon X-Request-Id posé par nginx."""
+    trace_id = scope.get("state", {}).get("trace_id")
+    if isinstance(trace_id, str):
+        return trace_id
     for nom, valeur in scope.get("headers", []):
         if nom == b"x-request-id":
             return trace_id_courant(valeur.decode("latin-1"))
