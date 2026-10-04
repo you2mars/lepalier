@@ -46,7 +46,7 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 3. Un contrat d'événement se modifie en ajoutant une version, jamais en place.
 4. Pas de migration destructive dans la même livraison (expansion puis contraction).
 5. Toute fonctionnalité visible = passage par la charte UX + ligne de recette manuelle + test automatisé.
-6. Demande avant toute commande destructive (`docker compose down -v`, `git push --force`, suppression de données).
+6. Demande avant toute commande destructive (`docker compose down -v`, `git push --force`, suppression de données) ; aucune suppression de fichier ou de dossier hors de /tmp sans mon accord, quel que soit l'outil (rm, shutil, find -delete, git clean…).
 7. Interface, messages, documents et erreurs en français clair, sans jargon technique (voir UX_CHARTE § 3).
 
 ## Processus d'un lot (voir docs/PLAN_DE_DEV.md)
