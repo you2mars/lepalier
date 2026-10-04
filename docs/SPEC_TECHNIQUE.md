@@ -57,7 +57,7 @@ Le navigateur, depuis Internet, n'atteint que nginx, qui termine TLS, vérifie l
 
 ## 3. Stack technique et justification des choix
 
-La pile retenue est FastAPI + PostgreSQL + Next.js, celle que tu pratiques déjà, complétée par NATS JetStream comme bus d'événements, Traefik comme passerelle, WeasyPrint pour les PDF et OpenTelemetry pour suivre une requête à travers les services ; chaque service est un paquet Python indépendant construit sur une image commune.
+La pile retenue est FastAPI + PostgreSQL + Next.js, celle que tu pratiques déjà, complétée par NATS JetStream comme bus d'événements, nginx comme passerelle, WeasyPrint pour les PDF et OpenTelemetry pour suivre une requête à travers les services ; chaque service est un paquet Python indépendant construit sur une image commune.
 
 | Couche | Choix | Pourquoi | Alternative écartée |
 | --- | --- | --- | --- |
@@ -646,7 +646,7 @@ La qualité repose sur quatre niveaux — propriétés sur les moteurs, intégra
 
 | Lot | Contenu | Prérequis | Livrable utilisable |
 | --- | --- | --- | --- |
-| 0 — Plateforme | Monorepo, image de base, `commun` (enveloppe, outbox/inbox, identité), Compose (postgres, nats, traefik, observabilité), CI avec tests de contrat, `identity` complet | Décisions § 14 | Connexion, invitations, traces visibles dans Grafana |
+| 0 — Plateforme | Monorepo, image de base, `commun` (enveloppe, outbox/inbox, identité), Compose (postgres, nats, nginx, observabilité), CI avec tests de contrat, `identity` complet | Décisions § 14 | Connexion, invitations, traces visibles dans Grafana |
 | 1 — `referentiel` + `documents` | SCI, lots, locations, locataires ; gabarits bail vide + annexes, EDL ; stockage immuable ; événements `location.*`, `document.emis` | Lot 0 | Rédiger et imprimer un bail et ses annexes |
 | 2 — `facturation` + `envois` | Échéances, paiements, machine à états ; avis et quittances par chorégraphie ; SMTP, lot d'impression, registre ; `reporting` minimal (tâches) | Lot 1 | Cycle mensuel complet en autonomie |
 | 3 — `charges-eau` + `veille` (IRL) | Relevés, factures, charges, répartition, régularisation ; collecteur INSEE et `irl.publie` ; révision IRL dans `facturation` ; assurance et calendrier dans `referentiel` | Lot 2 | Première régularisation annuelle outillée |
@@ -674,7 +674,7 @@ Chaque domaine de la spec fonctionnelle a un service responsable ; onze décisio
 | § 8 Envois et § 8.3 adaptateur | `envois` | File, `EmailSender`, `PostalAdapter`, `envoi.statut_change` | § 8 |
 | § 9 Veille | `veille` | Collecteurs, `irl.publie`, `veille.alerte` | § 9 |
 | § 10 Tableaux de bord | `reporting` | Projections, vues matérialisées, `/dashboards/*`, exports | § 4.1, § 10 |
-| § 11 Non fonctionnel | plateforme | Traefik, NATS, réseaux cloisonnés, sauvegardes cohérentes, `sante`, purge coordonnée | § 11, § 12 |
+| § 11 Non fonctionnel | plateforme | nginx, NATS, réseaux cloisonnés, sauvegardes cohérentes, `sante`, purge coordonnée | § 11, § 12 |
 | § 13 Points ouverts fonctionnels | — | Repris ci-dessous lorsqu'ils ont un impact technique | § 14.2 |
 
 ### 14.2 Décisions techniques à prendre
