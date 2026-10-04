@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sci-gestion-locative/contracts/events/utilisateur/cree.v1.json",
+  "title": "utilisateur.cree v1",
+  "description": "Un utilisateur a activé son compte invité (mot de passe et second facteur définis, APP-USR-01). Publié par identity. L'aggregate_id de l'enveloppe est égal à utilisateur_id. Ne contient jamais d'adresse e-mail ni de secret.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "utilisateur_id",
+    "role",
+    "associe_id",
+    "nom_affiche",
+    "par_utilisateur_id"
+  ],
+  "properties": {
+    "utilisateur_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identifiant de l'utilisateur (UUID v7 généré par identity)"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "gerant",
+        "associe",
+        "operateur"
+      ],
+      "description": "Rôle de l'utilisateur après l'événement"
+    },
+    "associe_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "Associé de la fiche SCI auquel l'utilisateur est lié (APP-USR-02), null sinon"
+    },
+    "nom_affiche": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "description": "Nom affiché à l'écran (ADR 0006) : 1 à 60 caractères, sans « @ » ni valeur faite seulement d'espaces ; jamais l'adresse e-mail",
+      "pattern": "^[^@]*[^@\\s][^@]*$"
+    },
+    "par_utilisateur_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "description": "Utilisateur qui a fait l'action (gérant qui a invité, changé le rôle, suspendu ou réactivé) ; null seulement pour la commande d'administration locale (ADR 0006)"
+    }
+  },
+  "examples": [
+    {
+      "utilisateur_id": "0192f3a4-5b6c-7d8e-9f01-234567890c01",
+      "role": "associe",
+      "associe_id": null,
+      "nom_affiche": "Mme Durand",
+      "par_utilisateur_id": "0192f3a4-5b6c-7d8e-9f01-234567890c00"
+    }
+  ]
+}

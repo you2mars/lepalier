@@ -53,8 +53,8 @@ typecheck: ## mypy strict sur commun et les moteurs, tsc sur le front
 	@for s in $(SERVICES) ; do [ -d services/$$s/app/engines ] && (cd services/$$s && uv run mypy --strict app/engines) || true; done
 	@[ -f front/package.json ] && (cd front && npx tsc --noEmit) || true
 
-contracts: ## Valide les contrats d'événements
-	python3 scripts/check_contracts.py
+contracts: ## Valide les contrats d'événements (environnement de libs/commun : jsonschema, pyyaml, rfc3339-validator)
+	uv run --project libs/commun python scripts/check_contracts.py
 
 docs-check: ## Vérifie la présence des specs exportées et les identifiants cités
 	python3 scripts/docs_check.py
