@@ -11,9 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install jsonschema pyyaml && python scripts/check_contracts.py
+      - uses: astral-sh/setup-uv@v3
+      - name: Contrats (même environnement qu'en local, formats date-time compris)
+        run: make contracts
   commun:
     runs-on: ubuntu-latest
     defaults:
