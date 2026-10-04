@@ -176,13 +176,22 @@ def _aujourd_hui_paris(fabrique: sessionmaker[Session]) -> date:
 
 def test_tick__premier_passage__jour_courant_en_heure_de_paris(fabrique: sessionmaker[Session]) -> None:
     jours: list[date] = []
-    assert JOBS.tick(fabrique, "essai", lambda s, j: jours.append(j)) == [_aujourd_hui_paris(fabrique)]
+    assert JOBS.tick(fabrique, "essai", lambda s, j: jours.append(j), heure_tick=0) == [
+        _aujourd_hui_paris(fabrique)
+    ]
     assert jours == [_aujourd_hui_paris(fabrique)]
 
 
+def test_tick__avant_l_heure_du_tick__jour_courant_pas_encore_planifie(
+    fabrique: sessionmaker[Session],
+) -> None:
+    hier = _aujourd_hui_paris(fabrique) - timedelta(days=1)
+    assert JOBS.tick(fabrique, "essai", lambda s, j: None, heure_tick=24) == [hier]
+
+
 def test_tick__meme_jour__rien_a_faire(fabrique: sessionmaker[Session]) -> None:
-    JOBS.tick(fabrique, "essai", lambda s, j: None)
-    assert JOBS.tick(fabrique, "essai", lambda s, j: None) == []
+    JOBS.tick(fabrique, "essai", lambda s, j: None, heure_tick=0)
+    assert JOBS.tick(fabrique, "essai", lambda s, j: None, heure_tick=0) == []
 
 
 def test_tick__jours_manques__rattrapes_dans_l_ordre_et_jobs_planifies(
@@ -195,7 +204,7 @@ def test_tick__jours_manques__rattrapes_dans_l_ordre_et_jobs_planifies(
     def planifier_jour(session: Session, jour: date) -> None:
         JOBS.planifier(session, "essai.quotidien", jour.isoformat())
 
-    jours = JOBS.tick(fabrique, "essai", planifier_jour)
+    jours = JOBS.tick(fabrique, "essai", planifier_jour, heure_tick=0)
     assert jours == [aujourd_hui - timedelta(days=2), aujourd_hui - timedelta(days=1), aujourd_hui]
     with fabrique() as s:
         assert (
@@ -210,6 +219,6 @@ def test_tick__echec_de_planification__dernier_tick_inchange(fabrique: sessionma
         raise RuntimeError("panne")
 
     with pytest.raises(RuntimeError):
-        JOBS.tick(fabrique, "essai", echoue)
+        JOBS.tick(fabrique, "essai", echoue, heure_tick=0)
     with fabrique() as s:
         assert s.execute(select(PLANIFICATEUR)).first() is None

@@ -48,6 +48,7 @@ DELAIS_NOUVELLE_TENTATIVE = (timedelta(minutes=1), timedelta(minutes=10), timede
 MAX_TENTATIVES = 3
 DELAI_ERREUR_RESEAU = timedelta(minutes=1)
 FUSEAU = "Europe/Paris"
+HEURE_TICK = 4
 
 Issue = Literal["termine", "reessai", "reporte", "echec"]
 
@@ -234,12 +235,21 @@ class Jobs:
         )
 
     def tick(
-        self, fabrique: Callable[[], Session], nom: str, planifier_jour: Callable[[Session, date], None]
+        self,
+        fabrique: Callable[[], Session],
+        nom: str,
+        planifier_jour: Callable[[Session, date], None],
+        heure_tick: int = HEURE_TICK,
     ) -> list[date]:
-        """TEC-JOB-06 : planifie une fois chaque jour écoulé depuis le dernier passage (et le jour même)."""
+        """TEC-JOB-06 : planifie une fois chaque jour écoulé depuis le dernier passage.
+
+        Un jour n'est planifié qu'à partir de `heure_tick` heures (Europe/Paris) : avant 04:00, le jour civil
+        courant est encore celui de la veille pour le planificateur.
+        """
         p = self.planificateur
+        heure_locale = func.timezone(FUSEAU, func.now()) - timedelta(hours=heure_tick)
         with fabrique() as session, session.begin():
-            aujourd_hui: date = session.scalar(select(func.date(func.timezone(FUSEAU, func.now()))))  # type: ignore[assignment]
+            aujourd_hui: date = session.scalar(select(func.date(heure_locale)))  # type: ignore[assignment]
             dernier = session.scalar(select(p.c.dernier_tick).where(p.c.nom == nom).with_for_update())
             debut = aujourd_hui if dernier is None else dernier + timedelta(days=1)
             jours = [debut + timedelta(days=n) for n in range((aujourd_hui - debut).days + 1)]
