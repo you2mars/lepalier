@@ -82,3 +82,17 @@ def alerte_compte_suspendu(nom_gerant: str, nom_affiche: str, instant: datetime)
             "Si cet accès doit être rétabli, réactivez-le dans Administration, Utilisateurs."
         ),
     )
+
+
+def invitation(nom_affiche: str, nom_gerant: str, lien: str) -> Courriel:
+    return Courriel(
+        objet="[LePalier] Votre invitation",
+        corps=(
+            f"Bonjour {nom_affiche},\n"
+            f"{nom_gerant} vous invite à utiliser LePalier, "
+            "l'application de gestion de l'immeuble de la SCI.\n"
+            "Pour créer votre accès, ouvrez ce lien et suivez les étapes à l'écran. Prévoyez 5 minutes et "
+            f"gardez votre téléphone à portée de main : {lien}\n"
+            "Ce lien est valable 7 jours. Si vous n'attendiez pas cette invitation, ignorez ce message."
+        ),
+    )

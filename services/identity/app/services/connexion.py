@@ -24,9 +24,9 @@ from app.engines.chiffrement import dechiffrer, pseudonymiser
 from app.engines.jetons import empreinte, nouveau_jeton
 from app.engines.mot_de_passe import hacher, rehachage_necessaire, verifier, verifier_factice
 from app.engines.verrouillage import PERIODE_ALERTE, Tentative, alerte_compte, verrou_couple
-from app.libelles import message
 from app.models import APPAREIL, CODE_SECOURS, JOBS, JOURNAL_SVC, SESSION, TENTATIVE_CONNEXION, UTILISATEUR
 from app.securite import ClesCompte
+from app.services.refus import refuser
 from commun.erreurs import ErreurApi
 from commun.identite import entetes_signes
 from commun.ids import uuid7
@@ -44,12 +44,6 @@ class SessionOuverte:
     jeton_appareil: str | None
     nom_affiche: str
     role: str
-
-
-def _refus(statut: int, code: str, cle: str, champ: str | None = None) -> ErreurApi:
-    texte = message(cle)
-    details: dict[str, Any] = {"champs": [{"champ": champ, "message": texte}]} if champ else {}
-    return ErreurApi(statut, code, texte, details)
 
 
 def _maintenant(s: Session) -> datetime:
@@ -93,7 +87,7 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
         maintenant = _maintenant(s)
         cle_compte = pseudonymiser(email, cles.pseudonymisation)
         if _couple_verrouille(s, cle_compte, ip, maintenant):
-            refus = _refus(429, "trop_d_essais", "connexion.trop_d_essais")
+            refus = refuser(429, "trop_d_essais", "connexion.trop_d_essais")
         else:
             u = (
                 s.execute(select(UTILISATEUR).where(func.lower(UTILISATEUR.c.email) == email.strip().lower()))
@@ -116,7 +110,7 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
                         ip=ip,
                     )
                     _alerter_echecs(s, u, cle_compte, maintenant)
-                refus = _refus(
+                refus = refuser(
                     401, "identifiants_incorrects", "connexion.identifiants_incorrects", "mot_de_passe"
                 )
             else:
@@ -340,7 +334,7 @@ def valider_code(
             .first()
         )
         if pre is None or pre["revoquee_le"] is not None or pre["expire_le"] <= maintenant:
-            refus = _refus(401, "delai_depasse", "code.delai_depasse")
+            refus = refuser(401, "delai_depasse", "code.delai_depasse")
         else:
             u = (
                 s.execute(select(UTILISATEUR).where(UTILISATEUR.c.id == pre["utilisateur_id"]))
@@ -349,7 +343,7 @@ def valider_code(
             )
             cle_compte = pseudonymiser(u["email"], cles.pseudonymisation)
             if _couple_verrouille(s, cle_compte, ip, maintenant):
-                refus = _refus(429, "trop_d_essais", "connexion.trop_d_essais")
+                refus = refuser(429, "trop_d_essais", "connexion.trop_d_essais")
             else:
                 etape, reussi = _verifier_code(s, u, saisie, maintenant, cles)
                 if not reussi:
@@ -366,9 +360,9 @@ def valider_code(
                     s.execute(update(SESSION).where(SESSION.c.id == pre["id"]).values(essais_totp=essais))
                     if durees.pre_session_epuisee(essais):
                         _revoquer(s, pre["id"], "essais_totp")
-                        refus = _refus(401, "trop_de_codes", "code.trop_de_codes")
+                        refus = refuser(401, "trop_de_codes", "code.trop_de_codes")
                     else:
-                        refus = _refus(401, "code_incorrect", "code.incorrect")
+                        refus = refuser(401, "code_incorrect", "code.incorrect")
                 elif u["statut"] != "actif":
                     _revoquer(s, pre["id"], "suspension")
                     _alerter_compte_suspendu(s, u["id"], maintenant)
@@ -379,7 +373,7 @@ def valider_code(
                         enregistrement_id=u["id"],
                         ip=ip,
                     )
-                    refus = _refus(403, "compte_suspendu", "connexion.compte_suspendu")
+                    refus = refuser(403, "compte_suspendu", "connexion.compte_suspendu")
                 else:
                     _revoquer(s, pre["id"], "rotation")
                     _tentative(s, cle_compte, u["id"], ip, etape, True)

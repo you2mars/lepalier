@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.auth import routeur as routeur_auth
+from app.api.utilisateurs import routeur as routeur_utilisateurs
 from app.db import fabrique
 from app.models import ETAT_WORKER, JOBS, OUTBOX
 from app.securite import ClesCompte, charger_cles
@@ -82,6 +83,7 @@ def creer_app(
     app.state.fabrique = fabrique_session
     app.state.cles = cles or ClesCompte(hmac=list(cles_hmac))
     app.include_router(routeur_auth)
+    app.include_router(routeur_utilisateurs)
     return app
 
 

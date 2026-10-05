@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     smtp_hote: str = "mailpit"
     smtp_port: int = 1025
     courriel_expediteur: str = "LePalier <lepalier@localhost>"
+    # adresse de l'application dans les liens envoyés par e-mail (invitation, réinitialisation)
+    url_publique: str = "https://localhost"
     # textes affichés, écrits une seule fois et partagés avec le front (docs/LEXIQUE.md)
     libelles_dir: Path = Path(__file__).resolve().parents[3] / "contracts" / "libelles"
 

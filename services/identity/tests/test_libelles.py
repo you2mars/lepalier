@@ -100,6 +100,9 @@ AUTRES_MESSAGES = {
     "nom_affiche.invalide": (
         "Indiquez un nom de 60 caractères au plus, sans « @ ». Par exemple : « Mme Durand »."
     ),
+    "utilisateurs.email_invalide": (
+        "Cette adresse e-mail ne semble pas correcte. Vérifiez-la, par exemple : « marie.durand@exemple.fr »."
+    ),
     "utilisateurs.email_deja_utilise": (
         "Cette adresse e-mail est déjà celle d'un compte. "
         "Vérifiez la liste des utilisateurs ou choisissez une autre adresse."
@@ -144,10 +147,10 @@ def test_libelles__aucune_cle_en_double_dans_le_fichier() -> None:
     assert doublons == []
 
 
-def test_libelles__25_messages_tous_verifies_mot_pour_mot() -> None:
+def test_libelles__26_messages_tous_verifies_mot_pour_mot() -> None:
     attendues = {f"mot_de_passe.{m.value}" for m in Motif} | set(AUTRES_MESSAGES)
     assert _toutes_les_cles() == attendues
-    assert len(attendues) == 25
+    assert len(attendues) == 26
 
 
 @pytest.mark.parametrize("cle", sorted(AUTRES_MESSAGES))
@@ -176,12 +179,20 @@ UTILISEES_PAR_LA_CONNEXION = {
     "code.delai_depasse",
     "code.trop_de_codes",
 }
-EN_ATTENTE = set(AUTRES_MESSAGES) - UTILISEES_PAR_LA_CONNEXION
+UTILISEES_PAR_L_INVITATION = {
+    "activation.code_incorrect",
+    "invitation.lien_invalide",
+    "invitation.deja_activee",
+    "nom_affiche.invalide",
+    "utilisateurs.email_invalide",
+    "utilisateurs.email_deja_utilise",
+}
+EN_ATTENTE = set(AUTRES_MESSAGES) - UTILISEES_PAR_LA_CONNEXION - UTILISEES_PAR_L_INVITATION
 APP = Path(__file__).resolve().parents[1] / "app"
 
 
 # fonctions du code qui reçoivent une clé de libellé ; à compléter quand un service en ajoute une
-FONCTIONS_LIBELLES = {"message", "_refus"}
+FONCTIONS_LIBELLES = {"message", "refuser"}
 
 
 def _cles_utilisees_par_le_code() -> set[str]:

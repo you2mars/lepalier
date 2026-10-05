@@ -1,16 +1,23 @@
-"""Jobs d'envoi des e-mails de compte : payload limité à des identifiants et un instant, jamais de jeton."""
+"""Jobs d'envoi des e-mails de compte : payload limité à des identifiants et un instant, jamais de jeton.
+
+Le jeton d'un lien est créé dans le job, dans la transaction qui l'envoie : si l'envoi échoue, la transaction
+est annulée et le jeton éventuellement parti ne vaut rien ; le nouvel essai en crée un autre.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.courriels import textes
 from app.courriels.envoi import Expediteur
-from app.models import APPAREIL, UTILISATEUR
+from app.engines import durees
+from app.engines.jetons import empreinte, nouveau_jeton
+from app.models import APPAREIL, INVITATION, UTILISATEUR
+from commun.ids import uuid7
 from commun.jobs import Gestionnaire, Job
 
 
@@ -32,7 +39,51 @@ def _gerants_actifs(s: Session) -> list[tuple[str, str]]:
     ]
 
 
-def gestionnaires(expediteur: Expediteur) -> dict[str, Gestionnaire]:
+def invalider_invitations(s: Session, utilisateur_id: UUID) -> None:
+    """Un seul lien actif par utilisateur : un renvoi invalide le précédent."""
+    s.execute(
+        update(INVITATION)
+        .where(
+            INVITATION.c.utilisateur_id == utilisateur_id,
+            INVITATION.c.utilisee_le.is_(None),
+            INVITATION.c.invalidee_le.is_(None),
+        )
+        .values(invalidee_le=func.now())
+    )
+
+
+def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestionnaire]:
+    def invitation(s: Session, job: Job) -> None:
+        u = (
+            s.execute(
+                select(UTILISATEUR)
+                .where(UTILISATEUR.c.id == UUID(job.payload["utilisateur_id"]))
+                .with_for_update()
+            )
+            .mappings()
+            .one()
+        )
+        if u["statut"] != "invite":
+            return  # activé entre-temps : plus rien à envoyer
+        nom_gerant = s.execute(
+            select(UTILISATEUR.c.nom_affiche).where(UTILISATEUR.c.id == u["invite_par"])
+        ).scalar_one()
+        invalider_invitations(s, u["id"])
+        jeton = nouveau_jeton()
+        maintenant = s.execute(select(func.now())).scalar_one()
+        s.execute(
+            insert(INVITATION).values(
+                id=uuid7(),
+                utilisateur_id=u["id"],
+                empreinte=empreinte(jeton),
+                cree_le=maintenant,
+                expire_le=durees.expiration_invitation(maintenant),
+                par_utilisateur_id=u["invite_par"],
+            )
+        )
+        lien = f"{url_publique.rstrip('/')}/activation#{jeton}"
+        expediteur.envoyer(u["email"], textes.invitation(u["nom_affiche"], nom_gerant, lien))
+
     def nouvel_appareil(s: Session, job: Job) -> None:
         email, nom = _utilisateur(s, job.payload["utilisateur_id"])
         cree_le = s.execute(
@@ -53,6 +104,7 @@ def gestionnaires(expediteur: Expediteur) -> dict[str, Gestionnaire]:
             expediteur.envoyer(email_gerant, textes.alerte_compte_suspendu(nom_gerant, nom, instant))
 
     return {
+        "courriel.invitation": invitation,
         "courriel.nouvel_appareil": nouvel_appareil,
         "courriel.alerte_echecs": alerte_echecs,
         "courriel.alerte_compte_suspendu": alerte_compte_suspendu,

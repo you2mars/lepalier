@@ -100,7 +100,7 @@ async def main() -> None:  # pragma: no cover - lancé par supervisord, couvert 
         nom=settings.service_name,
         fabrique_session=fabrique(),
         publieur=PublieurJetStream(js),
-        gestionnaires={**GESTIONNAIRES, **gestionnaires(expediteur)},
+        gestionnaires={**GESTIONNAIRES, **gestionnaires(expediteur, settings.url_publique)},
     )
     arret = asyncio.Event()
     boucle = asyncio.get_running_loop()

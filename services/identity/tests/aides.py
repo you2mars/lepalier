@@ -5,19 +5,24 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import insert, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.courriels.textes import Courriel
 from app.engines import codes_secours, mot_de_passe, totp
 from app.engines.chiffrement import Cle, chiffrer
+from app.jobs.courriels import gestionnaires
 from app.main import creer_app
-from app.models import CODE_SECOURS, UTILISATEUR
+from app.models import CODE_SECOURS, JOBS, UTILISATEUR
 from app.securite import ClesCompte
 from app.settings import Settings
+from commun.identite import Role, entetes_signes
 from commun.ids import uuid7
+from commun.jobs import ErreurReseau
 
 ORIGINE = "https://lepalier.essai"
 CLE_HMAC = b"h" * 32
@@ -100,3 +105,32 @@ def valeur(fabrique: sessionmaker[Session], requete: object) -> object:
 def lignes(fabrique: sessionmaker[Session], table: object, *conditions: object) -> list[dict[str, object]]:
     with fabrique() as s:
         return [dict(r) for r in s.execute(select(table).where(*conditions)).mappings()]  # type: ignore[call-overload,arg-type]
+
+
+@dataclass
+class ExpediteurMemoire:
+    """`en_panne` : SMTP injoignable ; `perdu_apres_envoi` : l'e-mail part, puis la connexion tombe."""
+
+    envoyes: list[tuple[str, Courriel]] = field(default_factory=list)
+    en_panne: bool = False
+    perdu_apres_envoi: bool = False
+
+    def envoyer(self, destinataire: str, courriel: Courriel) -> None:
+        if self.en_panne:
+            raise ErreurReseau("SMTP injoignable")
+        self.envoyes.append((destinataire, courriel))
+        if self.perdu_apres_envoi:
+            raise ErreurReseau("connexion SMTP perdue après l'envoi")
+
+
+def executer_jobs(fabrique: sessionmaker[Session], expediteur: ExpediteurMemoire) -> list[str | None]:
+    issues: list[str | None] = []
+    while (issue := JOBS.executer_un(fabrique, gestionnaires(expediteur, ORIGINE))) is not None:
+        issues.append(issue)
+    return issues
+
+
+def entetes(compte: Compte, role: Role = "gerant", **autres: str) -> dict[str, Any]:
+    """En-têtes d'identité signés comme par nginx après /auth/verify, et clé d'idempotence."""
+    signes = entetes_signes(compte.id, role, int(time.time()) + 60, CLE_HMAC)
+    return {**signes, "Idempotency-Key": str(uuid.uuid4()), **autres}
