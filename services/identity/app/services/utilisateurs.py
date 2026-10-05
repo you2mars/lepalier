@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -242,7 +243,7 @@ def _journaliser(
     s: Session,
     fait: str,
     utilisateur_id: UUID,
-    par: UUID,
+    par: UUID | None,
     avant: dict[str, Any] | None,
     apres: dict[str, Any] | None,
     ip: str | None,
@@ -262,6 +263,35 @@ def _journaliser(
 # --- réinitialisation de l'accès (ADR 0006, décision 3) -------------------------------------------------
 
 
+def effacer_acces(s: Session, u: Any, maintenant: datetime, par: UUID | None, ip: str | None) -> None:
+    """Retour au statut invité, dans la transaction de l'appelant : mot de passe, secret TOTP et codes de
+    secours effacés, sessions et appareils révoqués, liens en cours invalidés, action journalisée (`par`
+    null : commande d'administration locale). Le nouveau lien est créé par l'appelant."""
+    s.execute(
+        update(UTILISATEUR)
+        .where(UTILISATEUR.c.id == u["id"])
+        .values(statut="invite", mot_de_passe_hache=None, totp_secret_chiffre=None, totp_dernier_pas=None)
+    )
+    s.execute(
+        update(CODE_SECOURS)
+        .where(
+            CODE_SECOURS.c.utilisateur_id == u["id"],
+            CODE_SECOURS.c.utilise_le.is_(None),
+            CODE_SECOURS.c.invalide_le.is_(None),
+        )
+        .values(invalide_le=maintenant)
+    )
+    _revoquer_sessions(s, u["id"], "totp_reinitialise")
+    s.execute(
+        update(APPAREIL)
+        .where(APPAREIL.c.utilisateur_id == u["id"], APPAREIL.c.revoque_le.is_(None))
+        .values(revoque_le=maintenant)
+    )
+    invalider_invitations(s, u["id"])
+    invalider_reinitialisations(s, u["id"])
+    _journaliser(s, "acces_reinitialise", u["id"], par, {"statut": u["statut"]}, {"statut": "invite"}, ip)
+
+
 def reinitialiser_acces(fabrique: Fabrique, par: UUID, utilisateur_id: UUID, ip: str | None) -> None:
     """Retour au statut invité : mot de passe, secret TOTP et codes de secours effacés, sessions et appareils
     révoqués, nouveau lien d'activation de 7 jours envoyé par le job. Jamais sur son propre accès (commande
@@ -274,29 +304,7 @@ def reinitialiser_acces(fabrique: Fabrique, par: UUID, utilisateur_id: UUID, ip:
         if u["statut"] == "suspendu":
             raise refuser(409, "acces_suspendu", "utilisateurs.acces_suspendu")
         _dernier_gerant(gerants, u, reste_gerant_actif=False)
-        s.execute(
-            update(UTILISATEUR)
-            .where(UTILISATEUR.c.id == u["id"])
-            .values(statut="invite", mot_de_passe_hache=None, totp_secret_chiffre=None, totp_dernier_pas=None)
-        )
-        s.execute(
-            update(CODE_SECOURS)
-            .where(
-                CODE_SECOURS.c.utilisateur_id == u["id"],
-                CODE_SECOURS.c.utilise_le.is_(None),
-                CODE_SECOURS.c.invalide_le.is_(None),
-            )
-            .values(invalide_le=maintenant)
-        )
-        _revoquer_sessions(s, u["id"], "totp_reinitialise")
-        s.execute(
-            update(APPAREIL)
-            .where(APPAREIL.c.utilisateur_id == u["id"], APPAREIL.c.revoque_le.is_(None))
-            .values(revoque_le=maintenant)
-        )
-        invalider_invitations(s, u["id"])
-        invalider_reinitialisations(s, u["id"])
-        _journaliser(s, "acces_reinitialise", u["id"], par, {"statut": u["statut"]}, {"statut": "invite"}, ip)
+        effacer_acces(s, u, maintenant, par, ip)
         JOBS.planifier(
             s,
             "courriel.acces_reinitialise",

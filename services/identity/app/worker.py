@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.courriels.envoi import ExpediteurSmtp
 from app.db import fabrique
+from app.jobs import purges
 from app.jobs.courriels import gestionnaires
 from app.models import ETAT_WORKER, JOBS, OUTBOX_SVC
 from app.settings import settings
@@ -32,12 +33,13 @@ log = logging.getLogger("worker")
 
 MAX_JOBS_PAR_TOUR = 20
 
-# Type de job → gestionnaire (SPEC_TECHNIQUE § 6.1) ; à compléter par le service.
-GESTIONNAIRES: dict[str, Gestionnaire] = {}
+# Type de job → gestionnaire (SPEC_TECHNIQUE § 6.1) ; les e-mails de compte sont ajoutés dans main().
+GESTIONNAIRES: dict[str, Gestionnaire] = dict(purges.GESTIONNAIRES)
 
 
 def planifier_jour(session: Session, jour: date) -> None:
-    """Jobs quotidiens du service pour `jour` (JOBS.planifier avec clé d'idempotence) ; à compléter."""
+    """Jobs quotidiens du service pour `jour` (JOBS.planifier avec clé d'idempotence) : purges."""
+    purges.planifier(session, jour)
 
 
 class Worker:
