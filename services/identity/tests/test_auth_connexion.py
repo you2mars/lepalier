@@ -13,12 +13,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.auth import IP_INCONNUE
 from app.engines.chiffrement import pseudonymiser
 from app.libelles import message
 from app.models import IDEMPOTENCE, JOB, JOURNAL, SESSION, TENTATIVE_CONNEXION, UTILISATEUR
 from app.services import connexion as service_connexion
 
-from .aides import CLES, IP, MOT_DE_PASSE, ORIGINE, Compte, client, creer_compte, lignes, valeur
+from .aides import CLES, IP, MOT_DE_PASSE, ORIGINE, Compte, application, client, creer_compte, lignes, valeur
 
 pytestmark = pytest.mark.integration
 
@@ -402,3 +403,19 @@ def test_journal__connexion_reussie_echec_et_deconnexion__avec_ip(fabrique: sess
         "connexion.reussie": compte.id,
         "connexion.deconnexion": compte.id,
     }
+
+
+@pytest.mark.parametrize("entete", [None, "pas une adresse", "999.1.1.1", ""])
+def test_ip__absente_ou_mal_formee__adresse_inconnue_sans_erreur(
+    fabrique: sessionmaker[Session], entete: str | None
+) -> None:
+    """Sans X-Real-IP valable, le client de test se présente comme « testclient », pas une adresse."""
+    compte = creer_compte(fabrique)
+    c = TestClient(application(fabrique), base_url="https://testserver")
+    entetes = {} if entete is None else {"X-Real-IP": entete}
+    r = c.post(
+        "/auth/connexion", json={"email": compte.email, "mot_de_passe": "faux faux faux"}, headers=entetes
+    )
+    assert r.status_code == 401
+    (tentative,) = lignes(fabrique, TENTATIVE_CONNEXION, TENTATIVE_CONNEXION.c.utilisateur_id == compte.id)
+    assert str(tentative["ip"]) == IP_INCONNUE

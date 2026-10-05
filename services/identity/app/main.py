@@ -13,10 +13,12 @@ from app.api.auth import routeur as routeur_auth
 from app.api.utilisateurs import routeur as routeur_utilisateurs
 from app.api.utilisateurs import routeur_moi
 from app.db import fabrique
-from app.models import ETAT_WORKER, JOBS, OUTBOX
+from app.libelles import message
+from app.models import ETAT_WORKER, IDEMPOTENCE, JOBS, OUTBOX
 from app.securite import ClesCompte, charger_cles
 from app.settings import Settings, settings
 from commun.erreurs import installer_gestionnaires
+from commun.idempotence import IdempotenceMiddleware, MessagesIdempotence
 from commun.identite import IdentiteMiddleware
 from commun.interne import ServiceInterneMiddleware
 from commun.origine import OrigineMiddleware
@@ -41,8 +43,20 @@ def creer_app(
         openapi_url="/internal/openapi.json",
     )
     installer_gestionnaires(app)
-    # Du plus externe au plus interne : Trace, Origine, ServiceInterne, Identite.
+    # Du plus externe au plus interne : Trace, Origine, ServiceInterne, Identite, Idempotence.
     # add_middleware place le dernier ajouté à l'extérieur : ordre inverse ici.
+    app.add_middleware(
+        IdempotenceMiddleware,
+        fabrique=fabrique_session,
+        table=IDEMPOTENCE,
+        # écritures de l'administration seulement ; jamais /auth/* (ADR 0006)
+        prefixes=["/utilisateurs"],
+        messages=MessagesIdempotence(
+            cle_manquante=message("idempotence.cle_manquante"),
+            requete_en_cours=message("idempotence.requete_en_cours"),
+            cle_reutilisee=message("idempotence.cle_reutilisee"),
+        ),
+    )
     app.add_middleware(IdentiteMiddleware, cles=cles_hmac, prefixes_publics=reglages.prefixes_publics)
     app.add_middleware(ServiceInterneMiddleware, empreintes=empreintes)
     app.add_middleware(OrigineMiddleware, origines_autorisees=reglages.origines_autorisees)
