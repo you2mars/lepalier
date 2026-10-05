@@ -48,6 +48,7 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 5. Toute fonctionnalité visible = passage par la charte UX + ligne de recette manuelle + test automatisé.
 6. Demande avant toute commande destructive (`docker compose down -v`, `git push --force`, suppression de données) ; aucune suppression de fichier ou de dossier hors de /tmp sans mon accord, quel que soit l'outil (rm, shutil, find -delete, git clean…).
 7. Interface, messages, documents et erreurs en français clair, sans jargon technique (voir UX_CHARTE § 3).
+8. Le dépôt fait foi pour les textes validés (libellés, e-mails, messages, vérifiés mot pour mot par les tests) ; en cas de doute, demande à Youssef, ne relis jamais les transcriptions de session.
 
 ## Processus d'un lot (voir docs/PLAN_DE_DEV.md)
 1. `/lot N` : lire le lot, proposer l'ordre des tâches, créer la branche.
