@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
-from jsonschema import Draft202012Validator, FormatChecker  # type: ignore[import-untyped]
+from jsonschema import Draft202012Validator, FormatChecker
 from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session, sessionmaker
 

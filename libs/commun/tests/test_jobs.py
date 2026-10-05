@@ -18,7 +18,9 @@ JOBS = Jobs(JOB, PLANIFICATEUR)
 
 def _maintenant(fabrique: sessionmaker[Session]) -> datetime:
     with fabrique() as s:
-        return s.scalar(select(func.now()))  # type: ignore[no-any-return]
+        maintenant = s.scalar(select(func.now()))
+    assert isinstance(maintenant, datetime)
+    return maintenant
 
 
 def _ligne(fabrique: sessionmaker[Session], cle: str) -> dict[str, object]:

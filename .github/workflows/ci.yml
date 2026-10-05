@@ -27,7 +27,7 @@ jobs:
       - name: Lint
         run: uv run ruff check . && uv run ruff format --check .
       - name: Typage (mypy strict)
-        run: uv run mypy src/commun
+        run: uv run mypy src/commun tests
       - name: Tests et couverture ≥ 95 % (PostgreSQL 16 et NATS par Testcontainers)
         run: uv run pytest
       - name: Outillage (make dev-secrets, ADR 0007) dans des dossiers temporaires
