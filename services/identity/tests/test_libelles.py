@@ -224,12 +224,18 @@ UTILISEES_PAR_L_ADMINISTRATION = {
     "utilisateurs.acces_suspendu",
     "utilisateurs.se_suspendre",
 }
+UTILISEES_PAR_L_IDEMPOTENCE = {
+    "idempotence.cle_manquante",
+    "idempotence.requete_en_cours",
+    "idempotence.cle_reutilisee",
+}
 EN_ATTENTE = (
     set(AUTRES_MESSAGES)
     - UTILISEES_PAR_LA_CONNEXION
     - UTILISEES_PAR_L_INVITATION
     - UTILISEES_PAR_LA_REINITIALISATION
     - UTILISEES_PAR_L_ADMINISTRATION
+    - UTILISEES_PAR_L_IDEMPOTENCE
 )
 APP = Path(__file__).resolve().parents[1] / "app"
 

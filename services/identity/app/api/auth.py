@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
@@ -59,9 +60,21 @@ class FinActivation(BaseModel):
     _nom = field_validator("nom_affiche")(lambda nom: None if nom is None else nom_affiche_saisi(nom))
 
 
+def _adresse(valeur: str | None) -> str | None:
+    try:
+        return str(ipaddress.ip_address(valeur.strip())) if valeur else None
+    except ValueError:
+        return None
+
+
 def ip_de(request: Request) -> str:
-    """Adresse posée par nginx (X-Real-IP) ; à défaut, celle de la connexion."""
-    return request.headers.get("x-real-ip") or (request.client.host if request.client else IP_INCONNUE)
+    """Adresse posée par nginx (X-Real-IP) ; à défaut, celle de la connexion ; une valeur qui n'est pas une
+    adresse IP n'est jamais écrite dans le journal ni dans les tentatives (colonnes `inet`)."""
+    return (
+        _adresse(request.headers.get("x-real-ip"))
+        or _adresse(request.client.host if request.client else None)
+        or IP_INCONNUE
+    )
 
 
 def _poser(reponse: Response, nom: str, valeur: str, duree_secondes: int) -> None:
