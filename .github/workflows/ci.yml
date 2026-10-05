@@ -63,7 +63,7 @@ jobs:
         run: |
           cd services/${{ matrix.service }}
           uv run ruff check . && uv run ruff format --check .
-          [ -d app/engines ] && uv run mypy --strict app/engines || true
+          if [ -d app/engines ]; then uv run mypy --strict app/engines; fi
           uv run pytest --cov-fail-under=80
   front:
     runs-on: ubuntu-latest

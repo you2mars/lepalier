@@ -45,13 +45,13 @@ endif
 
 lint: ## ruff + eslint
 	cd libs/commun && uv run ruff check . && uv run ruff format --check .
-	@for s in $(SERVICES) ; do [ -d services/$$s ] && (cd services/$$s && uv run ruff check . && uv run ruff format --check .) || true; done
-	@[ -f front/package.json ] && (cd front && npm run lint) || true
+	@for s in $(SERVICES) ; do if [ -d services/$$s ]; then (cd services/$$s && uv run ruff check . && uv run ruff format --check .) || exit 1; fi; done
+	@if [ -f front/package.json ]; then cd front && npm run lint; fi
 
 typecheck: ## mypy strict sur commun et les moteurs, tsc sur le front
 	cd libs/commun && uv run mypy src/commun tests
-	@for s in $(SERVICES) ; do [ -d services/$$s/app/engines ] && (cd services/$$s && uv run mypy --strict app/engines) || true; done
-	@[ -f front/package.json ] && (cd front && npx tsc --noEmit) || true
+	@for s in $(SERVICES) ; do if [ -d services/$$s/app/engines ]; then (cd services/$$s && uv run mypy --strict app/engines) || exit 1; fi; done
+	@if [ -f front/package.json ]; then cd front && npx tsc --noEmit; fi
 
 contracts: ## Valide les contrats d'événements (environnement de libs/commun : jsonschema, pyyaml, rfc3339-validator)
 	uv run --project libs/commun python scripts/check_contracts.py
@@ -67,11 +67,12 @@ new-service: ## Crée un service : make new-service NAME=nom
 	bash scripts/new-service.sh $(NAME)
 
 recette: ## Charge le jeu de données de recette d'un lot : make recette LOT=N
-	@[ -f scripts/recette/lot-$(LOT).py ] && uv run python scripts/recette/lot-$(LOT).py || echo "scripts/recette/lot-$(LOT).py à générer avec /recette $(LOT)"
+	@if [ -f scripts/recette/lot-$(LOT).py ]; then uv run python scripts/recette/lot-$(LOT).py; else echo "scripts/recette/lot-$(LOT).py à générer avec /recette $(LOT)"; fi
 	@echo "Checklist : docs/RECETTE/lot-$(LOT).md"
 
 tick: ## Déclenche le planificateur quotidien de tous les services (recette)
-	@for s in $(SERVICES); do $(COMPOSE_DEV) exec -T $$s uv run python -m app.scheduler tick 2>/dev/null || true; done
+	@# seuls les services démarrés sont concernés ; une erreur d'un service démarré arrête la commande
+	@for s in $(SERVICES); do if $(COMPOSE_DEV) ps --services --status running | grep -qx "$$s"; then $(COMPOSE_DEV) exec -T $$s uv run python -m app.scheduler tick || exit 1; fi; done
 
 test-gabarit: ## Lint du gabarit, puis typage et tests d'un service généré dans un dossier temporaire
 	@set -e; dossier="$$(mktemp -d)/veille"; \
