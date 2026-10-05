@@ -7,16 +7,17 @@ est annulée et le jeton éventuellement parti ne vaut rien ; le nouvel essai en
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import Table, func, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.courriels import textes
 from app.courriels.envoi import Expediteur
 from app.engines import durees
 from app.engines.jetons import empreinte, nouveau_jeton
-from app.models import APPAREIL, INVITATION, UTILISATEUR
+from app.models import APPAREIL, INVITATION, REINITIALISATION, UTILISATEUR
 from commun.ids import uuid7
 from commun.jobs import Gestionnaire, Job
 
@@ -39,30 +40,43 @@ def _gerants_actifs(s: Session) -> list[tuple[str, str]]:
     ]
 
 
-def invalider_invitations(s: Session, utilisateur_id: UUID) -> None:
-    """Un seul lien actif par utilisateur : un renvoi invalide le précédent."""
+def _invalider(s: Session, table: Table, utilisateur_id: UUID) -> None:
     s.execute(
-        update(INVITATION)
+        update(table)
         .where(
-            INVITATION.c.utilisateur_id == utilisateur_id,
-            INVITATION.c.utilisee_le.is_(None),
-            INVITATION.c.invalidee_le.is_(None),
+            table.c.utilisateur_id == utilisateur_id,
+            table.c.utilisee_le.is_(None),
+            table.c.invalidee_le.is_(None),
         )
         .values(invalidee_le=func.now())
     )
 
 
+def invalider_invitations(s: Session, utilisateur_id: UUID) -> None:
+    """Un seul lien actif par utilisateur : un renvoi invalide le précédent."""
+    _invalider(s, INVITATION, utilisateur_id)
+
+
+def invalider_reinitialisations(s: Session, utilisateur_id: UUID) -> None:
+    """Une nouvelle demande, ou un mot de passe changé, invalide le lien en cours."""
+    _invalider(s, REINITIALISATION, utilisateur_id)
+
+
+def _utilisateur_verrouille(s: Session, job: Job) -> Any:
+    return (
+        s.execute(
+            select(UTILISATEUR)
+            .where(UTILISATEUR.c.id == UUID(job.payload["utilisateur_id"]))
+            .with_for_update()
+        )
+        .mappings()
+        .one()
+    )
+
+
 def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestionnaire]:
     def invitation(s: Session, job: Job) -> None:
-        u = (
-            s.execute(
-                select(UTILISATEUR)
-                .where(UTILISATEUR.c.id == UUID(job.payload["utilisateur_id"]))
-                .with_for_update()
-            )
-            .mappings()
-            .one()
-        )
+        u = _utilisateur_verrouille(s, job)
         if u["statut"] != "invite":
             return  # activé entre-temps : plus rien à envoyer
         nom_gerant = s.execute(
@@ -83,6 +97,31 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
         )
         lien = f"{url_publique.rstrip('/')}/activation#{jeton}"
         expediteur.envoyer(u["email"], textes.invitation(u["nom_affiche"], nom_gerant, lien))
+
+    def reinitialisation(s: Session, job: Job) -> None:
+        u = _utilisateur_verrouille(s, job)
+        if u["statut"] != "actif":
+            return  # suspendu entre-temps : aucun lien
+        invalider_reinitialisations(s, u["id"])
+        jeton = nouveau_jeton()
+        maintenant = s.execute(select(func.now())).scalar_one()
+        s.execute(
+            insert(REINITIALISATION).values(
+                id=uuid7(),
+                utilisateur_id=u["id"],
+                empreinte=empreinte(jeton),
+                cree_le=maintenant,
+                expire_le=durees.expiration_reinitialisation(maintenant),
+            )
+        )
+        lien = f"{url_publique.rstrip('/')}/reinitialisation#{jeton}"
+        expediteur.envoyer(u["email"], textes.reinitialisation(u["nom_affiche"], lien))
+
+    def mot_de_passe_change(s: Session, job: Job) -> None:
+        email, nom = _utilisateur(s, job.payload["utilisateur_id"])
+        expediteur.envoyer(
+            email, textes.mot_de_passe_change(nom, datetime.fromisoformat(job.payload["instant"]))
+        )
 
     def nouvel_appareil(s: Session, job: Job) -> None:
         email, nom = _utilisateur(s, job.payload["utilisateur_id"])
@@ -105,6 +144,8 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
 
     return {
         "courriel.invitation": invitation,
+        "courriel.reinitialisation": reinitialisation,
+        "courriel.mot_de_passe_change": mot_de_passe_change,
         "courriel.nouvel_appareil": nouvel_appareil,
         "courriel.alerte_echecs": alerte_echecs,
         "courriel.alerte_compte_suspendu": alerte_compte_suspendu,

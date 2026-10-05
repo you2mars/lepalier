@@ -13,7 +13,9 @@ from app.courriels.textes import (
     alerte_echecs,
     date_heure_paris,
     invitation,
+    mot_de_passe_change,
     nouvel_appareil,
+    reinitialisation,
 )
 from commun.jobs import ErreurReseau
 
@@ -84,9 +86,38 @@ def test_courriel_invitation__mot_pour_mot() -> None:
     )
 
 
+def test_courriel_reinitialisation__mot_pour_mot() -> None:
+    lien = "https://lepalier.essai/reinitialisation#" + "A" * 43
+    assert reinitialisation("Mme Durand", lien) == Courriel(
+        objet="[LePalier] Choisir un nouveau mot de passe",
+        corps=(
+            "Bonjour Mme Durand,\n"
+            "Vous avez demandé à changer votre mot de passe LePalier. "
+            f"Ouvrez ce lien pour en choisir un nouveau : {lien}\n"
+            "Vous aurez besoin de votre téléphone pour saisir votre code.\n"
+            "Ce lien est valable 1 heure. Si vous n'avez rien demandé, ignorez ce message : "
+            "votre mot de passe ne change pas."
+        ),
+    )
+
+
+def test_courriel_mot_de_passe_change__mot_pour_mot() -> None:
+    assert mot_de_passe_change("Mme Durand", ETE) == Courriel(
+        objet="[LePalier] Votre mot de passe a été changé",
+        corps=(
+            "Bonjour Mme Durand,\n"
+            "Le mot de passe de votre compte LePalier a été changé le mercredi 15 juillet 2026 à 1 h 30. "
+            "Toutes vos connexions ont été fermées.\n"
+            "Si ce n'est pas vous, contactez tout de suite le gérant de la SCI."
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     "courriel",
     [
+        reinitialisation("Mme Durand", "https://lepalier.essai/reinitialisation#jeton"),
+        mot_de_passe_change("Mme Durand", ETE),
         invitation("Mme Durand", "M. Martin", "https://lepalier.essai/activation#jeton"),
         nouvel_appareil("Mme Durand", ETE),
         alerte_echecs("M. Martin", "Mme Durand", ETE),

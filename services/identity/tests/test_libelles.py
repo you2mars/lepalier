@@ -187,7 +187,17 @@ UTILISEES_PAR_L_INVITATION = {
     "utilisateurs.email_invalide",
     "utilisateurs.email_deja_utilise",
 }
-EN_ATTENTE = set(AUTRES_MESSAGES) - UTILISEES_PAR_LA_CONNEXION - UTILISEES_PAR_L_INVITATION
+UTILISEES_PAR_LA_REINITIALISATION = {
+    "reinitialisation.demande_envoyee",
+    "reinitialisation.lien_invalide",
+    "reinitialisation.trop_de_codes",
+}
+EN_ATTENTE = (
+    set(AUTRES_MESSAGES)
+    - UTILISEES_PAR_LA_CONNEXION
+    - UTILISEES_PAR_L_INVITATION
+    - UTILISEES_PAR_LA_REINITIALISATION
+)
 APP = Path(__file__).resolve().parents[1] / "app"
 
 
