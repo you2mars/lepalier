@@ -31,12 +31,19 @@ def _env() -> Enveloppe:
     )
 
 
-def test_gabarit__aucun_job_ni_planification_metier_par_defaut(fabrique: sessionmaker[Session]) -> None:
-    assert GESTIONNAIRES == {}
+def test_worker__jobs_quotidiens_d_identity__purges_seulement(fabrique: sessionmaker[Session]) -> None:
+    """Les e-mails de compte sont branchés dans main() (expéditeur SMTP) ; les purges, chaque jour."""
+    assert set(GESTIONNAIRES) == {
+        "purge.sessions",
+        "purge.tentatives",
+        "purge.idempotence",
+        "purge.jobs",
+        "purge.outbox",
+    }
     with fabrique() as s, s.begin():
         planifier_jour(s, date(2026, 10, 4))
     with fabrique() as s:
-        assert s.scalar(select(func.count()).select_from(JOB)) == 0
+        assert s.scalar(select(func.count()).select_from(JOB)) == 5
 
 
 async def test_un_tour__relaie_execute_planifie_et_signale_sa_presence(

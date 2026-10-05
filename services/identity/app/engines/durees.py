@@ -9,6 +9,8 @@ ESSAIS_TOTP_MAX = 5
 INACTIVITE_MAX = timedelta(hours=12)
 DUREE_MAX_SESSION = timedelta(days=30)
 DUREE_INVITATION = timedelta(days=7)
+# lien affiché par la commande d'administration locale (ADR 0006, décision 5)
+DUREE_LIEN_COMMANDE_LOCALE = timedelta(hours=1)
 DUREE_REINITIALISATION = timedelta(hours=1)
 DUREE_APPAREIL = timedelta(days=365)
 # 5 codes faux (TOTP ou secours) invalident un lien de réinitialisation (ADR 0006)
