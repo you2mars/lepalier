@@ -9,7 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.api.saisie import nom_affiche_saisi
 from app.engines import durees
-from app.services import activation, connexion
+from app.libelles import message
+from app.services import activation, connexion, reinitialisation
 
 COOKIE_PRE = "lp_pre"
 COOKIE_SESSION = "lp_session"
@@ -34,6 +35,18 @@ class Code(BaseModel):
 class Lien(BaseModel):
     model_config = ConfigDict(extra="forbid")
     jeton: str = Field(max_length=64)
+
+
+class Demande(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(max_length=1024)
+
+
+class FinReinitialisation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    jeton: str = Field(max_length=64)
+    mot_de_passe: str = Field(max_length=1024)
+    code: str = Field(max_length=64)
 
 
 class FinActivation(BaseModel):
@@ -136,3 +149,26 @@ def activation_fin(corps: FinActivation, request: Request, response: Response) -
         "nom_affiche": active.nom_affiche,
         "role": active.role,
     }
+
+
+# --- mot de passe oublié (ADR 0006) ---------------------------------------------------------------------
+
+
+@routeur.post("/reinitialisation/demande", status_code=202)
+def reinitialisation_demande(corps: Demande, request: Request) -> dict[str, str]:
+    """Même réponse pour tout compte, existant ou non (ADR 0006)."""
+    reinitialisation.demander(request.app.state.fabrique, corps.email, ip_de(request))
+    return {"message": message("reinitialisation.demande_envoyee")}
+
+
+@routeur.post("/reinitialisation/fin", status_code=204)
+def reinitialisation_fin(corps: FinReinitialisation, request: Request) -> Response:
+    reinitialisation.terminer(
+        request.app.state.fabrique,
+        corps.jeton,
+        corps.mot_de_passe,
+        corps.code,
+        ip_de(request),
+        request.app.state.cles,
+    )
+    return Response(status_code=204)

@@ -522,3 +522,13 @@ def test_inviter__meme_adresse_en_meme_temps__une_seule_invitation_409_pour_l_au
 def test_inviter__email_ascii_imprimable__accepte(fabrique: sessionmaker[Session], email: str) -> None:
     r = _inviter(client(fabrique), _gerant(fabrique), email=f"  {email} ")
     assert (r.status_code, r.json()["email"]) == (201, email)
+
+
+def test_activation_fin__mot_de_passe_refuse__code_non_consomme(fabrique: sessionmaker[Session]) -> None:
+    _, uid, jeton, _ = _invite(fabrique)
+    c = client(fabrique)
+    code = totp.code(_secret(_debut(c, jeton).json()["uri_otpauth"]), totp.pas_a(time.time()))
+    assert _fin(c, jeton, code=code, mot_de_passe="court").status_code == 422
+    (u,) = lignes(fabrique, UTILISATEUR, UTILISATEUR.c.id == uid)
+    assert u["totp_dernier_pas"] is None
+    assert _fin(c, jeton, code=code).status_code == 200

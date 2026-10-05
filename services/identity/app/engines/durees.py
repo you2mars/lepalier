@@ -11,6 +11,8 @@ DUREE_MAX_SESSION = timedelta(days=30)
 DUREE_INVITATION = timedelta(days=7)
 DUREE_REINITIALISATION = timedelta(hours=1)
 DUREE_APPAREIL = timedelta(days=365)
+# 5 codes faux (TOTP ou secours) invalident un lien de réinitialisation (ADR 0006)
+ESSAIS_CODE_REINITIALISATION = 5
 
 
 def expiration_pre_session(cree_le: datetime) -> datetime:

@@ -50,7 +50,7 @@ def _maintenant(s: Session) -> datetime:
     return s.execute(select(func.now())).scalar_one()
 
 
-def _tentative(
+def noter_tentative(
     s: Session, cle_compte: bytes, utilisateur_id: UUID | None, ip: str, etape: str, reussie: bool
 ) -> None:
     s.execute(
@@ -65,7 +65,7 @@ def _tentative(
     )
 
 
-def _couple_verrouille(s: Session, cle_compte: bytes, ip: str, maintenant: datetime) -> bool:
+def couple_verrouille(s: Session, cle_compte: bytes, ip: str, maintenant: datetime) -> bool:
     t = TENTATIVE_CONNEXION
     lignes = s.execute(
         select(t.c.cree_le, t.c.reussie).where(
@@ -86,7 +86,7 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
     with fabrique() as s, s.begin():
         maintenant = _maintenant(s)
         cle_compte = pseudonymiser(email, cles.pseudonymisation)
-        if _couple_verrouille(s, cle_compte, ip, maintenant):
+        if couple_verrouille(s, cle_compte, ip, maintenant):
             refus = refuser(429, "trop_d_essais", "connexion.trop_d_essais")
         else:
             u = (
@@ -100,7 +100,7 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
             else:
                 bon = verifier(u["mot_de_passe_hache"], mot_de_passe)
             if not bon:
-                _tentative(s, cle_compte, u["id"] if u else None, ip, "mot_de_passe", False)
+                noter_tentative(s, cle_compte, u["id"] if u else None, ip, "mot_de_passe", False)
                 if u is not None:
                     JOURNAL_SVC.ecrire(
                         s,
@@ -142,7 +142,7 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
 # --- étape 2 : code TOTP ou code de secours ---------------------------------------------------------
 
 
-def _verifier_code(
+def verifier_code(
     s: Session, u: Any, saisie: str, maintenant: datetime, cles: ClesCompte
 ) -> tuple[str, bool]:
     """(étape, réussite) ; anti-rejeu TOTP et usage unique des codes de secours garantis par la base."""
@@ -342,12 +342,12 @@ def valider_code(
                 .one()
             )
             cle_compte = pseudonymiser(u["email"], cles.pseudonymisation)
-            if _couple_verrouille(s, cle_compte, ip, maintenant):
+            if couple_verrouille(s, cle_compte, ip, maintenant):
                 refus = refuser(429, "trop_d_essais", "connexion.trop_d_essais")
             else:
-                etape, reussi = _verifier_code(s, u, saisie, maintenant, cles)
+                etape, reussi = verifier_code(s, u, saisie, maintenant, cles)
                 if not reussi:
-                    _tentative(s, cle_compte, u["id"], ip, etape, False)
+                    noter_tentative(s, cle_compte, u["id"], ip, etape, False)
                     _alerter_echecs(s, u, cle_compte, maintenant)
                     JOURNAL_SVC.ecrire(
                         s,
@@ -376,7 +376,7 @@ def valider_code(
                     refus = refuser(403, "compte_suspendu", "connexion.compte_suspendu")
                 else:
                     _revoquer(s, pre["id"], "rotation")
-                    _tentative(s, cle_compte, u["id"], ip, etape, True)
+                    noter_tentative(s, cle_compte, u["id"], ip, etape, True)
                     jeton, jeton_appareil_neuf = ouvrir_session(
                         s, u["id"], maintenant, ip, jeton_appareil, prevenir=True
                     )

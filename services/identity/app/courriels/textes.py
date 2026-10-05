@@ -96,3 +96,30 @@ def invitation(nom_affiche: str, nom_gerant: str, lien: str) -> Courriel:
             "Ce lien est valable 7 jours. Si vous n'attendiez pas cette invitation, ignorez ce message."
         ),
     )
+
+
+def reinitialisation(nom_affiche: str, lien: str) -> Courriel:
+    return Courriel(
+        objet="[LePalier] Choisir un nouveau mot de passe",
+        corps=(
+            f"Bonjour {nom_affiche},\n"
+            "Vous avez demandé à changer votre mot de passe LePalier. "
+            f"Ouvrez ce lien pour en choisir un nouveau : {lien}\n"
+            "Vous aurez besoin de votre téléphone pour saisir votre code.\n"
+            "Ce lien est valable 1 heure. Si vous n'avez rien demandé, ignorez ce message : "
+            "votre mot de passe ne change pas."
+        ),
+    )
+
+
+def mot_de_passe_change(nom_affiche: str, instant: datetime) -> Courriel:
+    date, heure = date_heure_paris(instant)
+    return Courriel(
+        objet="[LePalier] Votre mot de passe a été changé",
+        corps=(
+            f"Bonjour {nom_affiche},\n"
+            f"Le mot de passe de votre compte LePalier a été changé le {date} à {heure}. "
+            "Toutes vos connexions ont été fermées.\n"
+            "Si ce n'est pas vous, contactez tout de suite le gérant de la SCI."
+        ),
+    )
