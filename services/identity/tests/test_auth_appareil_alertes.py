@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
@@ -12,34 +11,24 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.courriels.textes import Courriel, alerte_compte_suspendu, alerte_echecs, nouvel_appareil
+from app.courriels.textes import alerte_compte_suspendu, alerte_echecs, nouvel_appareil
 from app.engines.chiffrement import pseudonymiser
-from app.jobs.courriels import gestionnaires
-from app.models import APPAREIL, JOB, JOBS, TENTATIVE_CONNEXION, UTILISATEUR
+from app.models import APPAREIL, JOB, TENTATIVE_CONNEXION, UTILISATEUR
 from commun.ids import uuid7
-from commun.jobs import ErreurReseau
 
-from .aides import CLES, MOT_DE_PASSE, Compte, client, creer_compte, lignes, valeur
+from .aides import (
+    CLES,
+    MOT_DE_PASSE,
+    Compte,
+    ExpediteurMemoire,
+    client,
+    creer_compte,
+    executer_jobs,
+    lignes,
+    valeur,
+)
 
 pytestmark = pytest.mark.integration
-
-
-@dataclass
-class ExpediteurMemoire:
-    envoyes: list[tuple[str, Courriel]] = field(default_factory=list)
-    en_panne: bool = False
-
-    def envoyer(self, destinataire: str, courriel: Courriel) -> None:
-        if self.en_panne:
-            raise ErreurReseau("SMTP injoignable")
-        self.envoyes.append((destinataire, courriel))
-
-
-def _executer_jobs(fabrique: sessionmaker[Session], expediteur: ExpediteurMemoire) -> list[str | None]:
-    issues: list[str | None] = []
-    while (issue := JOBS.executer_un(fabrique, gestionnaires(expediteur))) is not None:
-        issues.append(issue)
-    return issues
 
 
 def _jobs(fabrique: sessionmaker[Session], type_: str) -> list[dict[str, object]]:
@@ -68,7 +57,7 @@ def test_appareil__connexion_complete_sans_cookie__email_info_et_cookie_1_an(
     (job,) = _jobs(fabrique, "courriel.nouvel_appareil")
     assert job["payload"] == {"utilisateur_id": str(compte.id), "appareil_id": str(appareil["id"])}
     expediteur = ExpediteurMemoire()
-    assert _executer_jobs(fabrique, expediteur) == ["termine"]
+    assert executer_jobs(fabrique, expediteur) == ["termine"]
     assert expediteur.envoyes == [(compte.email, nouvel_appareil("Mme Durand", appareil["cree_le"]))]  # type: ignore[arg-type]
 
 
@@ -143,7 +132,7 @@ def test_alerte__20_echecs_dans_l_heure__email_aux_gerants_une_fois(fabrique: se
     (job,) = _jobs(fabrique, "courriel.alerte_echecs")
     assert job["payload"]["utilisateur_id"] == str(compte.id)  # type: ignore[index]
     expediteur = ExpediteurMemoire()
-    _executer_jobs(fabrique, expediteur)
+    executer_jobs(fabrique, expediteur)
     instant = valeur(
         fabrique, select(UTILISATEUR.c.derniere_alerte_echecs_le).where(UTILISATEUR.c.id == compte.id)
     )
@@ -238,7 +227,7 @@ def test_alerte_compte_suspendu__une_par_compte_et_par_heure(fabrique: sessionma
     jobs = _jobs(fabrique, "courriel.alerte_compte_suspendu")
     assert len(jobs) == 2
     expediteur = ExpediteurMemoire()
-    _executer_jobs(fabrique, expediteur)
+    executer_jobs(fabrique, expediteur)
     assert sorted(dest for dest, _ in expediteur.envoyes) == sorted([martin.email, leroy.email] * 2)
     assert all(
         courriel.objet == alerte_compte_suspendu("x", "y", jobs[0]["cree_le"]).objet  # type: ignore[arg-type]
@@ -254,6 +243,6 @@ def test_job_courriel__smtp_injoignable__reporte_sans_perdre_le_courriel(
 ) -> None:
     compte = creer_compte(fabrique)
     _connexion_complete(client(fabrique), compte)
-    assert _executer_jobs(fabrique, ExpediteurMemoire(en_panne=True)) == ["reporte"]
+    assert executer_jobs(fabrique, ExpediteurMemoire(en_panne=True)) == ["reporte"]
     (job,) = _jobs(fabrique, "courriel.nouvel_appareil")
     assert (job["statut"], job["tentatives"]) == ("planifie", 0)

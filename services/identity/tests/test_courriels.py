@@ -12,6 +12,7 @@ from app.courriels.textes import (
     alerte_compte_suspendu,
     alerte_echecs,
     date_heure_paris,
+    invitation,
     nouvel_appareil,
 )
 from commun.jobs import ErreurReseau
@@ -69,9 +70,24 @@ def test_courriel_alerte_compte_suspendu__mot_pour_mot() -> None:
     )
 
 
+def test_courriel_invitation__mot_pour_mot() -> None:
+    lien = "https://lepalier.essai/activation#" + "A" * 43
+    assert invitation("Mme Durand", "M. Martin", lien) == Courriel(
+        objet="[LePalier] Votre invitation",
+        corps=(
+            "Bonjour Mme Durand,\n"
+            "M. Martin vous invite à utiliser LePalier, l'application de gestion de l'immeuble de la SCI.\n"
+            "Pour créer votre accès, ouvrez ce lien et suivez les étapes à l'écran. Prévoyez 5 minutes et "
+            f"gardez votre téléphone à portée de main : {lien}\n"
+            "Ce lien est valable 7 jours. Si vous n'attendiez pas cette invitation, ignorez ce message."
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     "courriel",
     [
+        invitation("Mme Durand", "M. Martin", "https://lepalier.essai/activation#jeton"),
         nouvel_appareil("Mme Durand", ETE),
         alerte_echecs("M. Martin", "Mme Durand", ETE),
         alerte_compte_suspendu("M. Martin", "Mme Durand", ETE),

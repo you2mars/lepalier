@@ -33,6 +33,7 @@
     "invalide": "Indiquez un nom de 60 caractères au plus, sans « @ ». Par exemple : « Mme Durand »."
   },
   "utilisateurs": {
+    "email_invalide": "Cette adresse e-mail ne semble pas correcte. Vérifiez-la, par exemple : « marie.durand@exemple.fr ».",
     "email_deja_utilise": "Cette adresse e-mail est déjà celle d'un compte. Vérifiez la liste des utilisateurs ou choisissez une autre adresse.",
     "dernier_gerant": "Cette modification n'est pas possible : ce compte est le dernier gérant actif. Nommez d'abord un autre gérant, puis recommencez.",
     "son_propre_acces": "Vous ne pouvez pas réinitialiser votre propre accès ici. Demandez-le à un autre gérant, ou utilisez la commande d'administration sur le serveur."
