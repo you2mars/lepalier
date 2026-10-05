@@ -111,6 +111,16 @@ AUTRES_MESSAGES = {
         "Cette modification n'est pas possible : ce compte est le dernier gérant actif. "
         "Nommez d'abord un autre gérant, puis recommencez."
     ),
+    "utilisateurs.compte_non_active": (
+        "Ce compte n'est pas encore activé : il ne peut être ni suspendu ni réactivé. "
+        "Renvoyez l'invitation si besoin."
+    ),
+    "utilisateurs.acces_suspendu": (
+        "L'accès de ce compte est suspendu. Réactivez-le d'abord, puis réinitialisez son accès."
+    ),
+    "utilisateurs.se_suspendre": (
+        "Vous ne pouvez pas suspendre votre propre accès. Si c'est nécessaire, demandez-le à un autre gérant."
+    ),
     "utilisateurs.son_propre_acces": (
         "Vous ne pouvez pas réinitialiser votre propre accès ici. "
         "Demandez-le à un autre gérant, ou utilisez la commande d'administration sur le serveur."
@@ -125,6 +135,21 @@ AUTRES_MESSAGES = {
         "Cette demande a déjà été envoyée avec d'autres informations. Rechargez la page puis réessayez."
     ),
 }
+
+
+# statuts d'un compte en mots (UX-14) : libellés courts, sans point final
+STATUTS = {
+    "statut.invite": "Invitation envoyée",
+    "statut.actif": "Accès actif",
+    "statut.suspendu": "Accès suspendu",
+    "statut.invitation_expiree": "Invitation expirée",
+}
+
+
+@pytest.mark.parametrize("cle", sorted(STATUTS))
+def test_message__statut_en_mots__mot_pour_mot(cle: str) -> None:
+    assert message(cle) == STATUTS[cle]
+    assert "!" not in message(cle)
 
 
 @pytest.mark.parametrize("cle", sorted(AUTRES_MESSAGES))
@@ -147,10 +172,10 @@ def test_libelles__aucune_cle_en_double_dans_le_fichier() -> None:
     assert doublons == []
 
 
-def test_libelles__26_messages_tous_verifies_mot_pour_mot() -> None:
-    attendues = {f"mot_de_passe.{m.value}" for m in Motif} | set(AUTRES_MESSAGES)
+def test_libelles__33_messages_tous_verifies_mot_pour_mot() -> None:
+    attendues = {f"mot_de_passe.{m.value}" for m in Motif} | set(AUTRES_MESSAGES) | set(STATUTS)
     assert _toutes_les_cles() == attendues
-    assert len(attendues) == 26
+    assert len(attendues) == 33
 
 
 @pytest.mark.parametrize("cle", sorted(AUTRES_MESSAGES))
@@ -192,11 +217,19 @@ UTILISEES_PAR_LA_REINITIALISATION = {
     "reinitialisation.lien_invalide",
     "reinitialisation.trop_de_codes",
 }
+UTILISEES_PAR_L_ADMINISTRATION = {
+    "utilisateurs.dernier_gerant",
+    "utilisateurs.son_propre_acces",
+    "utilisateurs.compte_non_active",
+    "utilisateurs.acces_suspendu",
+    "utilisateurs.se_suspendre",
+}
 EN_ATTENTE = (
     set(AUTRES_MESSAGES)
     - UTILISEES_PAR_LA_CONNEXION
     - UTILISEES_PAR_L_INVITATION
     - UTILISEES_PAR_LA_REINITIALISATION
+    - UTILISEES_PAR_L_ADMINISTRATION
 )
 APP = Path(__file__).resolve().parents[1] / "app"
 

@@ -23,13 +23,12 @@ from app.engines.chiffrement import chiffrer, dechiffrer
 from app.engines.jetons import empreinte
 from app.engines.mot_de_passe import hacher, lire_courants, motif_refus
 from app.libelles import message_mot_de_passe
-from app.models import CODE_SECOURS, INVITATION, JOURNAL_SVC, OUTBOX_SVC, UTILISATEUR
+from app.models import CODE_SECOURS, INVITATION, JOURNAL_SVC, UTILISATEUR
 from app.securite import ClesCompte
 from app.services.connexion import ouvrir_session
+from app.services.evenements import publier
 from app.services.refus import refuser, refuser_texte
-from commun.enveloppe import Enveloppe
 from commun.ids import uuid7
-from commun.trace import trace_id_courant
 
 Fabrique = Callable[[], Session]
 COURANTS = Path(__file__).resolve().parents[1] / "engines" / "donnees" / "mots_de_passe_courants.txt"
@@ -164,25 +163,7 @@ def fin(
         s.execute(update(INVITATION).where(INVITATION.c.id == lien["id"]).values(utilisee_le=maintenant))
         if premiere:
             # une nouvelle activation après réinitialisation de l'accès ne publie rien (ADR 0006)
-            OUTBOX_SVC.ajouter(
-                s,
-                Enveloppe(
-                    id=uuid7(),
-                    type="utilisateur.cree",
-                    version=1,
-                    occurred_at=maintenant,
-                    producer="identity",
-                    aggregate_id=u["id"],
-                    trace_id=trace_id_courant(),
-                    payload={
-                        "utilisateur_id": u["id"],
-                        "role": u["role"],
-                        "associe_id": u["associe_id"],
-                        "nom_affiche": nom,
-                        "par_utilisateur_id": lien["par_utilisateur_id"],
-                    },
-                ),
-            )
+            publier(s, "cree", {**u, "nom_affiche": nom}, lien["par_utilisateur_id"], maintenant)
         JOURNAL_SVC.ecrire(
             s,
             action="utilisateur.active",

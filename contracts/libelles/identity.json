@@ -36,11 +36,20 @@
     "email_invalide": "Cette adresse e-mail ne semble pas correcte. Vérifiez-la, par exemple : « marie.durand@exemple.fr ».",
     "email_deja_utilise": "Cette adresse e-mail est déjà celle d'un compte. Vérifiez la liste des utilisateurs ou choisissez une autre adresse.",
     "dernier_gerant": "Cette modification n'est pas possible : ce compte est le dernier gérant actif. Nommez d'abord un autre gérant, puis recommencez.",
-    "son_propre_acces": "Vous ne pouvez pas réinitialiser votre propre accès ici. Demandez-le à un autre gérant, ou utilisez la commande d'administration sur le serveur."
+    "son_propre_acces": "Vous ne pouvez pas réinitialiser votre propre accès ici. Demandez-le à un autre gérant, ou utilisez la commande d'administration sur le serveur.",
+    "compte_non_active": "Ce compte n'est pas encore activé : il ne peut être ni suspendu ni réactivé. Renvoyez l'invitation si besoin.",
+    "acces_suspendu": "L'accès de ce compte est suspendu. Réactivez-le d'abord, puis réinitialisez son accès.",
+    "se_suspendre": "Vous ne pouvez pas suspendre votre propre accès. Si c'est nécessaire, demandez-le à un autre gérant."
   },
   "idempotence": {
     "cle_manquante": "Votre demande n'a pas pu être enregistrée. Rechargez la page puis réessayez.",
     "requete_en_cours": "Votre demande est déjà en cours d'enregistrement. Patientez quelques secondes.",
     "cle_reutilisee": "Cette demande a déjà été envoyée avec d'autres informations. Rechargez la page puis réessayez."
+  },
+  "statut": {
+    "invite": "Invitation envoyée",
+    "actif": "Accès actif",
+    "suspendu": "Accès suspendu",
+    "invitation_expiree": "Invitation expirée"
   }
 }

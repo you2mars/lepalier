@@ -75,13 +75,17 @@ def _utilisateur_verrouille(s: Session, job: Job) -> Any:
 
 
 def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestionnaire]:
-    def invitation(s: Session, job: Job) -> None:
+    def _lien_d_activation(s: Session, job: Job) -> tuple[Any, str] | None:
+        """Nouveau lien d'activation de 7 jours (utilisateur, lien), ou None si le compte n'est plus invité.
+        L'auteur est le gérant qui a agi (`par_utilisateur_id`), à défaut celui qui a invité."""
         u = _utilisateur_verrouille(s, job)
         if u["statut"] != "invite":
-            return  # activé entre-temps : plus rien à envoyer
-        nom_gerant = s.execute(
-            select(UTILISATEUR.c.nom_affiche).where(UTILISATEUR.c.id == u["invite_par"])
-        ).scalar_one()
+            return None  # activé ou suspendu entre-temps : plus rien à envoyer
+        par = (
+            UUID(job.payload["par_utilisateur_id"])
+            if "par_utilisateur_id" in job.payload
+            else u["invite_par"]
+        )
         invalider_invitations(s, u["id"])
         jeton = nouveau_jeton()
         maintenant = s.execute(select(func.now())).scalar_one()
@@ -92,11 +96,25 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
                 empreinte=empreinte(jeton),
                 cree_le=maintenant,
                 expire_le=durees.expiration_invitation(maintenant),
-                par_utilisateur_id=u["invite_par"],
+                par_utilisateur_id=par,
             )
         )
-        lien = f"{url_publique.rstrip('/')}/activation#{jeton}"
-        expediteur.envoyer(u["email"], textes.invitation(u["nom_affiche"], nom_gerant, lien))
+        return u, f"{url_publique.rstrip('/')}/activation#{jeton}"
+
+    def invitation(s: Session, job: Job) -> None:
+        cree = _lien_d_activation(s, job)
+        if cree is not None:
+            u, lien = cree
+            nom_gerant = s.execute(
+                select(UTILISATEUR.c.nom_affiche).where(UTILISATEUR.c.id == u["invite_par"])
+            ).scalar_one()
+            expediteur.envoyer(u["email"], textes.invitation(u["nom_affiche"], nom_gerant, lien))
+
+    def acces_reinitialise(s: Session, job: Job) -> None:
+        cree = _lien_d_activation(s, job)
+        if cree is not None:
+            u, lien = cree
+            expediteur.envoyer(u["email"], textes.acces_reinitialise(u["nom_affiche"], lien))
 
     def reinitialisation(s: Session, job: Job) -> None:
         u = _utilisateur_verrouille(s, job)
@@ -144,6 +162,7 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
 
     return {
         "courriel.invitation": invitation,
+        "courriel.acces_reinitialise": acces_reinitialise,
         "courriel.reinitialisation": reinitialisation,
         "courriel.mot_de_passe_change": mot_de_passe_change,
         "courriel.nouvel_appareil": nouvel_appareil,

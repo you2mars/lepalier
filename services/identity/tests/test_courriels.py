@@ -9,6 +9,7 @@ import pytest
 from app.courriels.envoi import ExpediteurSmtp
 from app.courriels.textes import (
     Courriel,
+    acces_reinitialise,
     alerte_compte_suspendu,
     alerte_echecs,
     date_heure_paris,
@@ -86,6 +87,23 @@ def test_courriel_invitation__mot_pour_mot() -> None:
     )
 
 
+def test_courriel_acces_reinitialise__mot_pour_mot() -> None:
+    lien = "https://lepalier.essai/activation#" + "A" * 43
+    assert acces_reinitialise("Mme Durand", lien) == Courriel(
+        objet="[LePalier] Votre accès a été réinitialisé",
+        corps=(
+            "Bonjour Mme Durand,\n"
+            "Le gérant de la SCI a réinitialisé votre accès à LePalier : "
+            "votre ancien mot de passe, vos codes de secours et les codes de votre application "
+            "d'authentification ne fonctionnent plus.\n"
+            "Pour retrouver votre accès, ouvrez ce lien et suivez les étapes à l'écran. "
+            f"Prévoyez 5 minutes et gardez votre téléphone à portée de main : {lien}\n"
+            "Ce lien est valable 7 jours. Si vous ne savez pas pourquoi votre accès a été réinitialisé, "
+            "contactez le gérant de la SCI."
+        ),
+    )
+
+
 def test_courriel_reinitialisation__mot_pour_mot() -> None:
     lien = "https://lepalier.essai/reinitialisation#" + "A" * 43
     assert reinitialisation("Mme Durand", lien) == Courriel(
@@ -116,6 +134,7 @@ def test_courriel_mot_de_passe_change__mot_pour_mot() -> None:
 @pytest.mark.parametrize(
     "courriel",
     [
+        acces_reinitialise("Mme Durand", "https://lepalier.essai/activation#jeton"),
         reinitialisation("Mme Durand", "https://lepalier.essai/reinitialisation#jeton"),
         mot_de_passe_change("Mme Durand", ETE),
         invitation("Mme Durand", "M. Martin", "https://lepalier.essai/activation#jeton"),
