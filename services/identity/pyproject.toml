@@ -23,6 +23,7 @@ test = [
   "pytest-cov",
   "hypothesis>=6",
   "httpx",
+  "jsonschema>=4.23",
   "testcontainers[postgres]>=4.8",
   "mypy",
   "ruff",

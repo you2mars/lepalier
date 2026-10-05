@@ -123,3 +123,19 @@ def mot_de_passe_change(nom_affiche: str, instant: datetime) -> Courriel:
             "Si ce n'est pas vous, contactez tout de suite le gérant de la SCI."
         ),
     )
+
+
+def acces_reinitialise(nom_affiche: str, lien: str) -> Courriel:
+    return Courriel(
+        objet="[LePalier] Votre accès a été réinitialisé",
+        corps=(
+            f"Bonjour {nom_affiche},\n"
+            "Le gérant de la SCI a réinitialisé votre accès à LePalier : "
+            "votre ancien mot de passe, vos codes de secours et les codes de votre application "
+            "d'authentification ne fonctionnent plus.\n"
+            "Pour retrouver votre accès, ouvrez ce lien et suivez les étapes à l'écran. "
+            f"Prévoyez 5 minutes et gardez votre téléphone à portée de main : {lien}\n"
+            "Ce lien est valable 7 jours. Si vous ne savez pas pourquoi votre accès a été réinitialisé, "
+            "contactez le gérant de la SCI."
+        ),
+    )
