@@ -8,40 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
-PARIS = ZoneInfo("Europe/Paris")
-JOURS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
-MOIS = (
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-)
+from commun.dates import date_heure_paris
 
 
 @dataclass(frozen=True)
 class Courriel:
     objet: str
     corps: str
-
-
-def date_heure_paris(instant: datetime) -> tuple[str, str]:
-    """(« mercredi 15 juillet 2026 », « 1 h 30 ») pour un instant donné, à l'heure de Paris."""
-    local = instant.astimezone(PARIS)
-    jour = "1er" if local.day == 1 else str(local.day)
-    return (
-        f"{JOURS[local.weekday()]} {jour} {MOIS[local.month - 1]} {local.year}",
-        f"{local.hour} h {local.minute:02d}",
-    )
 
 
 def nouvel_appareil(nom_affiche: str, instant: datetime) -> Courriel:
