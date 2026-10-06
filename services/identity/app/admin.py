@@ -19,12 +19,12 @@ from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session
 
 from app.api.saisie import email_saisi, nom_affiche_saisi
-from app.courriels.textes import date_heure_paris
 from app.engines import durees
 from app.engines.jetons import empreinte, nouveau_jeton
 from app.libelles import message
 from app.models import INVITATION, JOURNAL_SVC, UTILISATEUR
 from app.services.utilisateurs import effacer_acces
+from commun.dates import heure_paris
 from commun.ids import uuid7
 
 Fabrique = Callable[[], Session]
@@ -34,7 +34,7 @@ COMPTE_INCONNU = "Aucun compte n'a cette adresse e-mail. Vérifiez l'adresse pui
 
 def consigne_lien(expire_le: datetime) -> str:
     """Heure limite à l'heure de Paris (UX-13)."""
-    _, heure = date_heure_paris(expire_le)
+    heure = heure_paris(expire_le)
     return (
         f"Lien d'activation, valable 1 heure (jusqu'à {heure}) et affiché une seule fois : "
         "ouvrez-le, puis suivez les étapes à l'écran."

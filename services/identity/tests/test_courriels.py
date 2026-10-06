@@ -12,7 +12,6 @@ from app.courriels.textes import (
     acces_reinitialise,
     alerte_compte_suspendu,
     alerte_echecs,
-    date_heure_paris,
     invitation,
     mot_de_passe_change,
     nouvel_appareil,
@@ -21,19 +20,6 @@ from app.courriels.textes import (
 from commun.jobs import ErreurReseau
 
 ETE = datetime(2026, 7, 14, 23, 30, tzinfo=UTC)
-
-
-@pytest.mark.parametrize(
-    ("instant", "attendu"),
-    [
-        (ETE, ("mercredi 15 juillet 2026", "1 h 30")),
-        (datetime(2026, 1, 10, 23, 30, tzinfo=UTC), ("dimanche 11 janvier 2026", "0 h 30")),
-        (datetime(2026, 10, 4, 12, 5, tzinfo=UTC), ("dimanche 4 octobre 2026", "14 h 05")),
-        (datetime(2026, 10, 1, 8, 0, tzinfo=UTC), ("jeudi 1er octobre 2026", "10 h 00")),
-    ],
-)
-def test_date_heure_paris__toutes_lettres_heure_de_paris(instant: datetime, attendu: tuple[str, str]) -> None:
-    assert date_heure_paris(instant) == attendu
 
 
 def test_courriel_nouvel_appareil__mot_pour_mot() -> None:

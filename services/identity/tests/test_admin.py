@@ -13,9 +13,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import admin
-from app.courriels.textes import date_heure_paris
 from app.libelles import message
 from app.models import APPAREIL, CODE_SECOURS, INVITATION, JOB, JOURNAL, SESSION, UTILISATEUR
+from commun.dates import heure_paris
 
 from .aides import MOT_DE_PASSE, ORIGINE, application, client, creer_compte, lignes
 
@@ -67,7 +67,7 @@ def _heure_limite(fabrique: sessionmaker[Session]) -> str:
     (lien,) = lignes(
         fabrique, INVITATION, INVITATION.c.utilisee_le.is_(None), INVITATION.c.invalidee_le.is_(None)
     )
-    return date_heure_paris(lien["expire_le"])[1]  # type: ignore[arg-type]
+    return heure_paris(lien["expire_le"])  # type: ignore[arg-type]
 
 
 def test_admin_creer_gerant__texte_affiche_mot_pour_mot(fabrique: sessionmaker[Session]) -> None:
