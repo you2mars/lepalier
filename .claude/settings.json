@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/hooks/format.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/hooks/format.sh\""
           }
         ]
       }

@@ -1,0 +1,3 @@
+# Appels HTTP internes autorisés (TEC-API-05, TEC-SEC-04, ADR 0007) : une ligne « <appelant> <appelé> ».
+# make dev-secrets génère pour chaque ligne jeton_<appelant>_vers_<appelé> (monté chez l'appelant)
+# et empreinte_<appelant>_vers_<appelé> (montée chez l'appelé). Aucun appel interne au lot 0.

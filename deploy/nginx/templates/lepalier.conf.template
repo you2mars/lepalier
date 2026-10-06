@@ -1,0 +1,120 @@
+# Serveur LePalier (dev). ${LEPALIER_WIREGUARD} : sous-réseau WireGuard autorisé sur /ops (valeur définitive au lot 2).
+server {
+  listen 443 ssl;
+  http2 on;
+  ssl_certificate /etc/nginx/certs/dev.crt;
+  ssl_certificate_key /etc/nginx/certs/dev.key;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  client_max_body_size 1m;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy no-referrer always;
+  add_header X-Frame-Options DENY always;
+
+  # Réponses de nginx au même format que commun : {code, message, details, trace_id}
+  location @non_authentifie {
+    default_type application/json;
+    return 401 "{\"code\":\"unauthenticated\",\"message\":\"Votre session a expiré ou n'est pas reconnue. Reconnectez-vous.\",\"details\":{},\"trace_id\":\"$request_id\"}";
+  }
+  location @trop_de_requetes {
+    default_type application/json;
+    return 429 "{\"code\":\"trop_de_requetes\",\"message\":\"Trop de demandes en peu de temps. Patientez une minute, puis réessayez.\",\"details\":{},\"trace_id\":\"$request_id\"}";
+  }
+  location @introuvable {
+    default_type application/json;
+    return 404 "{\"code\":\"not_found\",\"message\":\"Cette page ou cette information n'existe pas.\",\"details\":{},\"trace_id\":\"$request_id\"}";
+  }
+
+  # Vérification d'identité, pour nginx seul (auth_request) ; jamais joignable de l'extérieur
+  location = /_auth {
+    internal;
+    set $identity identity:8000;
+    proxy_pass http://$identity/auth/verify;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header X-Request-Id $request_id;
+    proxy_cache cache_auth;
+    proxy_cache_key $cookie_lp_session;
+    proxy_cache_valid 200 10s;
+    proxy_cache_bypass $sans_session;
+    proxy_no_cache $sans_session;
+    proxy_ignore_headers Cache-Control Expires Set-Cookie;
+  }
+  location = /api/identity/auth/verify { try_files /introuvable @introuvable; }
+  location /internal/ { try_files /introuvable @introuvable; }
+  location ~ ^/api/[^/]+/internal/ { try_files /introuvable @introuvable; }
+
+  # Connexion, code, activation, réinitialisation : publiques, limitées par adresse
+  location /api/identity/auth/ {
+    limit_req zone=auth burst=10 nodelay;
+    error_page 429 = @trop_de_requetes;
+    include /etc/nginx/proxy_common.conf;
+    include /etc/nginx/entetes_identite_vides.conf;
+    set $identity identity:8000;
+    rewrite ^/api/identity/(.*)$ /$1 break;
+    proxy_pass http://$identity;
+  }
+
+  location /api/ {
+    auth_request /_auth;
+    auth_request_set $uid $upstream_http_x_user_id;
+    auth_request_set $role $upstream_http_x_role;
+    auth_request_set $sig $upstream_http_x_auth_sig;
+    auth_request_set $exp $upstream_http_x_auth_exp;
+    error_page 401 = @non_authentifie;
+    error_page 429 = @trop_de_requetes;
+    limit_req zone=api burst=40;
+    include /etc/nginx/proxy_common.conf;
+    proxy_set_header X-User-Id $uid;
+    proxy_set_header X-Role $role;
+    proxy_set_header X-Auth-Sig $sig;
+    proxy_set_header X-Auth-Exp $exp;
+    # en premier : les expressions régulières imbriquées passent avant celles du niveau serveur
+    location ~ ^/api/[^/]+/internal/ {
+      auth_request off;
+      try_files /introuvable @introuvable;
+    }
+    location /api/documents/files {
+      client_max_body_size 50m;
+      proxy_request_buffering off;
+      set $amont documents:8000;
+      rewrite ^/api/documents/(.*)$ /$1 break;
+      proxy_pass http://$amont;
+    }
+    location ~ ^/api/(identity|referentiel|facturation|charges-eau|documents|envois|veille|reporting)/ {
+      set $amont $1:8000;
+      rewrite ^/api/[^/]+/(.*)$ /$1 break;
+      proxy_pass http://$amont;
+    }
+  }
+
+  # Supervision (Grafana au lot 2) : réseau WireGuard seulement (TEC-SEC-18)
+  location /ops/ {
+    allow ${LEPALIER_WIREGUARD};
+    deny all;
+    try_files /introuvable @introuvable;
+  }
+
+  location / {
+    include /etc/nginx/proxy_common.conf;
+    include /etc/nginx/entetes_identite_vides.conf;
+    proxy_set_header X-Nonce $request_id;
+    set $front front:3000;
+    proxy_pass http://$front;
+    # front arrêté : son adresse reste en cache 10 s ; échec rapide plutôt qu'une attente de 60 s
+    proxy_connect_timeout 2s;
+    # front absent ou arrêté : page de maintenance plutôt qu'une erreur brute (TEC-WEB-08)
+    error_page 502 504 =503 /maintenance.html;
+  }
+  location = /maintenance.html {
+    internal;
+    root /usr/share/nginx/maintenance;
+  }
+}
+
+# Vérification de santé de Compose : port interne au conteneur, jamais publié
+server {
+  listen 127.0.0.1:8080;
+  access_log off;
+  location = /_sante { return 204; }
+}

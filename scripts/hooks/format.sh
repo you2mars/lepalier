@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Hook PostToolUse (Edit|Write) : formate le fichier modifié selon son type. Lit l'entrée JSON du hook sur stdin.
+cd "$CLAUDE_PROJECT_DIR"
 set -euo pipefail
 file=$(jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
 [ -z "$file" ] && exit 0

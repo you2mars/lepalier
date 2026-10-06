@@ -1,0 +1,55 @@
+{
+  "mot_de_passe": {
+    "trop_court": "Choisissez au moins 12 caractères. Une phrase de plusieurs mots est plus facile à retenir.",
+    "trop_long": "Ce mot de passe est trop long : 128 caractères au plus. Une phrase de quelques mots suffit.",
+    "suite_ou_repetition": "Ce mot de passe est trop facile à deviner : il répète ou enchaîne les mêmes caractères (comme « aaaa » ou « 1234 »). Choisissez plutôt une phrase de plusieurs mots.",
+    "nom_application": "Ce mot de passe est trop facile à deviner : il contient le nom de l'application. Choisissez une phrase sans « LePalier » ni « palier ».",
+    "adresse_email": "Ce mot de passe est trop facile à deviner : il contient votre adresse e-mail ou une partie de celle-ci. Choisissez une phrase sans rapport avec votre adresse.",
+    "courant": "Ce mot de passe est trop facile à deviner : il fait partie des plus utilisés. Choisissez une phrase de plusieurs mots qui vous est propre."
+  },
+  "connexion": {
+    "identifiants_incorrects": "L'adresse e-mail ou le mot de passe est incorrect. Vérifiez-les puis réessayez, ou choisissez « Mot de passe oublié ».",
+    "trop_d_essais": "Trop d'essais. Réessayez dans 15 minutes.",
+    "compte_suspendu": "Votre accès a été suspendu. Contactez le gérant de la SCI."
+  },
+  "code": {
+    "incorrect": "Ce code ne correspond pas. Saisissez le code à 6 chiffres affiché en ce moment dans votre application d'authentification, ou l'un de vos codes de secours.",
+    "delai_depasse": "Le délai pour saisir le code est dépassé. Reconnectez-vous avec votre adresse e-mail et votre mot de passe.",
+    "trop_de_codes": "Trop de codes incorrects. Reconnectez-vous avec votre adresse e-mail et votre mot de passe."
+  },
+  "activation": {
+    "code_incorrect": "Ce code ne correspond pas. Vérifiez que LePalier apparaît bien dans votre application d'authentification, puis saisissez le code à 6 chiffres qu'elle affiche en ce moment."
+  },
+  "invitation": {
+    "lien_invalide": "Ce lien d'invitation n'est plus valable : il a expiré ou a déjà servi. Demandez-en un nouveau au gérant de la SCI.",
+    "deja_activee": "Ce compte est déjà activé : il n'y a pas d'invitation à renvoyer."
+  },
+  "reinitialisation": {
+    "demande_envoyee": "Si un compte existe pour cette adresse, un e-mail vient d'être envoyé avec un lien valable 1 heure. Pensez à regarder dans les courriers indésirables.",
+    "lien_invalide": "Ce lien n'est plus valable : il a expiré ou a déjà servi. Faites une nouvelle demande avec « Mot de passe oublié ».",
+    "trop_de_codes": "Trop de codes incorrects : ce lien n'est plus valable. Faites une nouvelle demande avec « Mot de passe oublié »."
+  },
+  "nom_affiche": {
+    "invalide": "Indiquez un nom de 60 caractères au plus, sans « @ ». Par exemple : « Mme Durand »."
+  },
+  "utilisateurs": {
+    "email_invalide": "Cette adresse e-mail ne semble pas correcte. Vérifiez-la, par exemple : « marie.durand@exemple.fr ».",
+    "email_deja_utilise": "Cette adresse e-mail est déjà celle d'un compte. Vérifiez la liste des utilisateurs ou choisissez une autre adresse.",
+    "dernier_gerant": "Cette modification n'est pas possible : ce compte est le dernier gérant actif. Nommez d'abord un autre gérant, puis recommencez.",
+    "son_propre_acces": "Vous ne pouvez pas réinitialiser votre propre accès ici. Demandez-le à un autre gérant, ou utilisez la commande d'administration sur le serveur.",
+    "compte_non_active": "Ce compte n'est pas encore activé : il ne peut être ni suspendu ni réactivé. Renvoyez l'invitation si besoin.",
+    "acces_suspendu": "L'accès de ce compte est suspendu. Réactivez-le d'abord, puis réinitialisez son accès.",
+    "se_suspendre": "Vous ne pouvez pas suspendre votre propre accès. Si c'est nécessaire, demandez-le à un autre gérant."
+  },
+  "idempotence": {
+    "cle_manquante": "Votre demande n'a pas pu être enregistrée. Rechargez la page puis réessayez.",
+    "requete_en_cours": "Votre demande est déjà en cours d'enregistrement. Patientez quelques secondes.",
+    "cle_reutilisee": "Cette demande a déjà été envoyée avec d'autres informations. Rechargez la page puis réessayez."
+  },
+  "statut": {
+    "invite": "Invitation envoyée",
+    "actif": "Accès actif",
+    "suspendu": "Accès suspendu",
+    "invitation_expiree": "Invitation expirée"
+  }
+}

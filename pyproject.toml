@@ -4,7 +4,15 @@ line-length = 110
 target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "S", "RUF"]
-ignore = ["S101"]
+# N818 : les exceptions portent des noms métier en français (ErreurApi, IdentiteInvalide), pas le suffixe « Error »
+ignore = ["S101", "N818"]
+[tool.ruff.lint.per-file-ignores]
+# tests d'outillage : lancent bash, docker et docker compose avec des arguments fixes
+"scripts/tests/**" = ["S603", "S607"]
+# tests : mots de passe d'essai des conteneurs et SQL sur des noms de tables fixes
+"**/tests/**" = ["S105", "S106", "S608"]
+[tool.ruff.lint.isort]
+known-first-party = ["commun", "app", "migrations"]
 [tool.mypy]
 python_version = "3.12"
 warn_unused_ignores = true

@@ -6,3 +6,7 @@
 - CSP : nonce lu dans `headers().get('x-nonce')`, passé aux scripts ; aucun inline sans nonce.
 - Tests : Playwright dans `e2e/`, un parcours par écran ; vitest pour `format.ts` et les composants de formulaire.
 - Accessibilité : axe-core en test e2e, navigation clavier vérifiée, labels explicites, `aria-live` pour les messages de succès/erreur.
+- Champs mot de passe et e-mail : `autocapitalize="none"`, `autocorrect="off"`, `spellcheck="false"`, y compris quand le bouton « Afficher » passe le champ de mot de passe en texte (sinon le correcteur ou la majuscule automatique modifient la saisie).
+- Champ e-mail : `type="email"`, `autocomplete="username"`, `inputmode="email"`.
+- Champ mot de passe : `autocomplete="current-password"` à la connexion, `autocomplete="new-password"` à la création (activation) et à la réinitialisation.
+- Code de vérification (TOTP) : un seul champ, `inputmode="numeric"`, `autocomplete="one-time-code"` ; jamais six cases séparées.

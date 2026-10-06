@@ -1,0 +1,17 @@
+# Contexte de construction des images : le code seulement, jamais de secret, de certificat ni de cache local.
+.git
+.env
+.env.*
+deploy/secrets
+deploy/nginx/certs
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.hypothesis
+**/.coverage
+**/htmlcov
+**/node_modules
+front/.next
+front/out
