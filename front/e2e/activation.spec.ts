@@ -157,10 +157,15 @@ test.describe("Activer mon compte", () => {
     await caseNotes.check();
     await page.getByRole("button", { name: C.continuer }).click();
     await expect(page).toHaveURL(/\/\?motif=compte_active$/);
+    // accueil (écran 5) : bandeau « Fait » et la façon de se connecter la prochaine fois (N19)
+    await expect(page.getByRole("status")).toContainText(TEXTES.accueil.compteActive);
   });
 
-  test("/activation/codes rechargée : codes perdus, accueil avec le bandeau qui le dit", async ({ page }) => {
+  test("/activation/codes rechargée : codes perdus, accueil avec le bandeau qui le dit (via Se connecter sans session)", async ({
+    page,
+  }) => {
     await page.goto("/activation/codes");
-    await expect(page).toHaveURL(/\/\?motif=codes_perdus$/);
+    // sans session dans cet essai : Se connecter, avec l'accueil et son bandeau comme page demandée
+    await expect(page).toHaveURL(/\/connexion\?retour=%2F%3Fmotif%3Dcodes_perdus$/);
   });
 });

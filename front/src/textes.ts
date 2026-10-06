@@ -84,6 +84,25 @@ export const TEXTES = {
     barrezApresUsage: "Chaque code ne sert qu'une fois : barrez-le après usage.",
     imprimeLe: "Imprimé le",
   },
+  // écrans connectés (maquettes v3, § 0.2) ; rôles en mots du lexique (Q5)
+  cadre: {
+    role: "Rôle :",
+    seDeconnecter: "Se déconnecter",
+    aFaire: "À faire",
+    administration: "Administration",
+  },
+  roles: { gerant: "Gérant", associe: "Associé", operateur: "Opérateur" },
+  accueil: {
+    titre: "À faire",
+    videGestion:
+      "Rien à faire pour le moment. Les paiements à enregistrer, les relevés d'eau et les envois à préparer apparaîtront ici, du plus urgent au moins urgent.",
+    videAssocie:
+      "Rien à faire pour le moment. Vous n'avez aucune saisie à faire dans LePalier : les informations importantes apparaîtront ici.",
+    compteActive:
+      "Votre compte est activé. Pour vous connecter la prochaine fois : votre adresse e-mail, votre mot de passe, puis le code de votre application.",
+  },
+  // bloc ou écran dont la source ne répond pas (UX-30)
+  indisponible: "Information momentanément indisponible",
   // repris de libs/commun (erreurs.py, identite.py) pour les cas sans réponse de l'API ; un test vérifie l'égalité
   commun: {
     erreurInattendue: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",

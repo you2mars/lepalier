@@ -66,11 +66,20 @@ export const COMPTE = {
 // clé TOTP en hexadécimal et deux codes de secours, créés par scripts/tests/test_plateforme.py.
 type CompteCode = { email: string; secret: string; secours: string[] };
 
-export function compteCode(projet: string): CompteCode {
-  const comptes = JSON.parse(process.env.LEPALIER_E2E_COMPTES_CODE ?? "{}") as Record<string, CompteCode>;
+function lireCompte(variable: string, projet: string): CompteCode {
+  const comptes = JSON.parse(process.env[variable] ?? "{}") as Record<string, CompteCode>;
   const compte = comptes[projet];
-  if (!compte) throw new Error(`compte de l'écran du code absent pour le projet ${projet}`);
+  if (!compte) throw new Error(`compte absent pour le projet ${projet} (${variable})`);
   return compte;
+}
+
+export function compteCode(projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_CODE", projet);
+}
+
+// gérant de l'essai de l'accueil, un par projet
+export function compteAccueil(projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_ACCUEIL", projet);
 }
 
 // RFC 6238 (SHA-1, 6 chiffres, pas de 30 s), comme les applications d'authentification

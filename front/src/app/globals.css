@@ -100,3 +100,34 @@ a.bouton { display: inline-flex; align-items: center; text-decoration: none; }
   .entete-public, .ecran-seul { display: none; }
   .feuille-impression { display: block; font-size: 12pt; }
 }
+
+/* Écrans connectés (maquettes v3, § 0.2) : menu à gauche, ou en bas sous 48 rem de largeur utile (zoom 200 %) */
+/* visible au focus, par-dessus la page : rien ne bouge quand il perd le focus */
+.aller-au-contenu { position: absolute; left: -9999px; top: 0; z-index: 10; }
+.aller-au-contenu:focus { left: var(--espace); top: var(--espace); padding: var(--espace); background: var(--fond); }
+.cadre-connecte { display: grid; grid-template-columns: 14rem 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
+.entete-connecte {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espace) calc(var(--espace) * 2);
+  padding: var(--espace) calc(var(--espace) * 2);
+  border-bottom: 1px solid var(--bordure);
+}
+.entete-connecte .nom-application { flex: 1; }
+.entete-connecte .personne { order: 1; margin: 0; }
+.se-deconnecter { order: 2; }
+.menu { border-right: 1px solid var(--bordure); padding: calc(var(--espace) * 2); }
+.menu ul { list-style: none; margin: 0; padding: 0; }
+.menu a { display: flex; align-items: center; min-height: 44px; padding: 0 var(--espace); }
+.menu a[aria-current="page"] { font-weight: 700; }
+.contenu-connecte { padding: 0 calc(var(--espace) * 2) calc(var(--espace) * 4); max-width: 72ch; }
+.contenu-connecte:focus { outline: none; }
+.squelette-carte { height: 5rem; margin-bottom: calc(var(--espace) * 2); }
+@media (max-width: 48rem) {
+  .cadre-connecte { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  .entete-connecte .personne { order: 3; flex-basis: 100%; }
+  .menu { position: sticky; bottom: 0; background: var(--fond); border-right: none; border-top: 1px solid var(--bordure); grid-row: 3; padding: 0 var(--espace); }
+  .menu ul { display: flex; gap: var(--espace); }
+}

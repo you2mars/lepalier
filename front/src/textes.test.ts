@@ -103,6 +103,26 @@ describe("textes du front", () => {
     });
   });
 
+  it("cadre connecté et accueil (N4, N19, N20, Q5 ; UX-30)", () => {
+    expect(TEXTES.cadre).toEqual({
+      role: "Rôle :",
+      seDeconnecter: "Se déconnecter",
+      aFaire: "À faire",
+      administration: "Administration",
+    });
+    expect(TEXTES.roles).toEqual({ gerant: "Gérant", associe: "Associé", operateur: "Opérateur" });
+    expect(TEXTES.accueil).toEqual({
+      titre: "À faire",
+      videGestion:
+        "Rien à faire pour le moment. Les paiements à enregistrer, les relevés d'eau et les envois à préparer apparaîtront ici, du plus urgent au moins urgent.",
+      videAssocie:
+        "Rien à faire pour le moment. Vous n'avez aucune saisie à faire dans LePalier : les informations importantes apparaîtront ici.",
+      compteActive:
+        "Votre compte est activé. Pour vous connecter la prochaine fois : votre adresse e-mail, votre mot de passe, puis le code de votre application.",
+    });
+    expect(TEXTES.indisponible).toBe("Information momentanément indisponible");
+  });
+
   it("messages de commun repris quand aucune réponse de l'API n'est disponible : identiques à libs/commun", () => {
     const racine = join(__dirname, "..", "..", "libs", "commun", "src", "commun");
     const constante = (fichier: string, nom: string) =>

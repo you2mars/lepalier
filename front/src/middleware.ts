@@ -9,6 +9,8 @@ export function middleware(requete: NextRequest) {
   const entetes = new Headers(requete.headers);
   entetes.set("x-nonce", nonce);
   entetes.set("Content-Security-Policy", csp);
+  // chemin demandé, pour revenir à la bonne page après une reconnexion ; toujours écrasé, jamais celui du navigateur
+  entetes.set("x-lepalier-chemin", requete.nextUrl.pathname + requete.nextUrl.search);
   const reponse = NextResponse.next({ request: { headers: entetes } });
   reponse.headers.set("Content-Security-Policy", csp);
   return reponse;
