@@ -48,6 +48,41 @@ describe("textes du front", () => {
     });
   });
 
+  it("écran Activer mon compte (N5, N11 à N15)", () => {
+    expect(TEXTES.activation).toEqual({
+      titre: "Activer mon compte",
+      avantDeCommencer:
+        "Avant de commencer : installez sur votre téléphone l'application « Google Authenticator » (gratuite, dans l'App Store ou le Play Store). Si vous quittez cette page pour l'installer, rouvrez simplement le lien de l'e-mail : vous reprendrez ici.",
+      autresApplications: "Autres applications possibles",
+      autresApplicationsListe: ["Microsoft Authenticator", "FreeOTP"],
+      adresseDeConnexion: "Votre adresse de connexion :",
+      etapes: [
+        "Étape 1 sur 3 : votre nom",
+        "Étape 2 sur 3 : votre mot de passe",
+        "Étape 3 sur 3 : votre application d'authentification",
+      ],
+      continuer: "Continuer",
+      etapePrecedente: "Étape précédente",
+      bouton: "Activer mon compte",
+      nomAffiche: "Nom affiché",
+      aideNom: "Le nom que verront les autres utilisateurs de LePalier.",
+      motDePasse: "Mot de passe",
+      aideMotDePasse:
+        "Au moins 12 caractères. Une phrase de plusieurs mots est plus facile à retenir, par exemple « le chat dort sur le toit ». Touchez « Afficher » pour vérifier ce que vous avez tapé.",
+      consigneApplication: "Ajoutez LePalier à votre application d'authentification :",
+      consigneTelephone: "sur ce téléphone : touchez « Ajouter à mon application » ;",
+      consigneOrdinateur: "sur un ordinateur ou une tablette : scannez ce code avec votre téléphone.",
+      ajouter: "Ajouter à mon application",
+      rienNeSouvre:
+        "Si rien ne s'ouvre, l'application n'est pas encore installée : installez-la, ou saisissez la clé ci-dessous.",
+      altQr: "Code à scanner pour ajouter LePalier à votre application d'authentification",
+      cleManuelle: "Le code ne se scanne pas ? Saisissez cette clé dans l'application :",
+      copierCle: "Copier la clé",
+      cleCopiee: "Clé copiée.",
+      libelleCode: "Code à 6 chiffres affiché par l'application",
+    });
+  });
+
   it("messages de commun repris quand aucune réponse de l'API n'est disponible : identiques à libs/commun", () => {
     const racine = join(__dirname, "..", "..", "libs", "commun", "src", "commun");
     const constante = (fichier: string, nom: string) =>

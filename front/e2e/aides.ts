@@ -90,3 +90,24 @@ export function codeFaux(secretHex: string): string {
     if (!proches.has(code)) return code;
   }
 }
+
+// Jeton du lien d'invitation du projet (une invitation par projet : l'activation la consomme).
+export function jetonInvitation(projet: string): string {
+  const jetons = JSON.parse(process.env.LEPALIER_E2E_INVITATIONS ?? "{}") as Record<string, string>;
+  const jeton = jetons[projet];
+  if (!jeton) throw new Error(`invitation absente pour le projet ${projet}`);
+  return jeton;
+}
+
+// Clé affichée à l'écran (base32, RFC 4648, espaces tolérés) en hexadécimal, pour codeTotp.
+export function base32EnHex(cle: string): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const caractere of cle.replace(/\s+/g, "").toUpperCase()) {
+    const valeur = alphabet.indexOf(caractere);
+    if (valeur < 0) throw new Error(`caractère hors base32 : ${caractere}`);
+    bits += valeur.toString(2).padStart(5, "0");
+  }
+  const octets = bits.match(/.{8}/g) ?? [];
+  return octets.map((o) => parseInt(o, 2).toString(16).padStart(2, "0")).join("");
+}

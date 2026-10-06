@@ -81,3 +81,10 @@ a { color: var(--action); text-underline-offset: 0.15em; }
   cursor: pointer;
 }
 .action-sous-champ { margin: calc(var(--espace) * -2) 0 calc(var(--espace) * 3); }
+a.bouton { display: inline-flex; align-items: center; text-decoration: none; }
+.encadre { border: 1px solid var(--bordure); border-radius: 4px; padding: var(--espace) calc(var(--espace) * 2); }
+.encadre summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--action); }
+.squelette { height: 12rem; border-radius: 4px; background: #e8e6e3; }
+.qr { display: block; max-width: 100%; height: auto; }
+.cle { display: flex; flex-wrap: wrap; gap: var(--espace); align-items: center; }
+.cle code { font-size: 1.125rem; letter-spacing: 0.05em; overflow-wrap: anywhere; }

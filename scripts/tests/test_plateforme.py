@@ -471,6 +471,12 @@ with fabrique()() as s, s.begin():
         ))
 print(*codes)
 """
+# invitation par la commande locale (app.admin) : jeton du lien d'activation, sans e-mail
+INVITER = """
+from app.admin import creer_gerant
+from app.db import fabrique
+print(creer_gerant(fabrique(), "{email}", "M. Essai", "https://essai.invalide").rsplit("#", 1)[1].strip())
+"""
 # un compte par projet Playwright (front/playwright.config.ts) : l'anti-rejeu refuse deux fois un même code
 PROJETS_PLAYWRIGHT = ("ordinateur", "mobile-360")
 
@@ -773,6 +779,11 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         uid, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
         secours = plateforme.python(AJOUTER_CODES_SECOURS.format(uid=uid)).stdout.split()
         comptes_code[projet] = {"email": email, "secret": secret, "secours": secours}
+    # une invitation par projet : l'activation la consomme
+    invitations = {
+        projet: plateforme.python(INVITER.format(email=f"e2e-activation-{projet}@essai.local")).stdout.strip()
+        for projet in PROJETS_PLAYWRIGHT
+    }
     plateforme.compose(
         "up",
         "-d",
@@ -791,6 +802,7 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_EMAIL": "e2e@essai.local",
         "LEPALIER_E2E_MOT_DE_PASSE": MOT_DE_PASSE,
         "LEPALIER_E2E_COMPTES_CODE": json.dumps(comptes_code),
+        "LEPALIER_E2E_INVITATIONS": json.dumps(invitations),
         # dossiers du conteneur Playwright, pas de l'hôte
         "LEPALIER_E2E_SORTIE": "/tmp/resultats",  # noqa: S108
         "HOME": "/tmp",  # noqa: S108
