@@ -278,7 +278,8 @@ def test_activation_debut__lien_valide__uri_otpauth_secret_chiffre_version_1(
     _, uid, jeton, _ = _invite(fabrique)
     r = _debut(client(fabrique), jeton)
     assert r.status_code == 200
-    assert r.json()["nom_affiche"] == "Mme Durand"
+    assert set(r.json()) == {"uri_otpauth", "nom_affiche", "email"}
+    assert (r.json()["nom_affiche"], r.json()["email"]) == ("Mme Durand", EMAIL)
     uri = r.json()["uri_otpauth"]
     assert uri.startswith("otpauth://totp/LePalier:Mme%20Durand?")
     assert EMAIL not in uri

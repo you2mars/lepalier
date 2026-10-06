@@ -90,6 +90,8 @@ ROUTES = [
     ("POST", "/utilisateurs/{id}/renvoyer-invitation"),
     ("PATCH", "/utilisateurs/{id}"),
     ("POST", "/utilisateurs/{id}/reinitialiser-acces"),
+    ("GET", "/utilisateurs/{id}"),
+    ("POST", "/utilisateurs/{id}/annuler-invitation"),
 ]
 
 
@@ -177,7 +179,16 @@ def test_lister__gerant__statuts_en_mots_sans_secret(fabrique: sessionmaker[Sess
         "Mme Invitée": ("invite", message("statut.invitation_expiree")),
         "M. Suspendu": ("suspendu", message("statut.suspendu")),
     }
-    assert set(par_nom["M. Martin"]) == {"id", "email", "nom_affiche", "role", "statut", "statut_libelle"}
+    assert set(par_nom["M. Martin"]) == {
+        "id",
+        "email",
+        "nom_affiche",
+        "role",
+        "statut",
+        "statut_libelle",
+        "invitation_envoyee_le",
+        "invitation_expire_le",
+    }
     assert [u["nom_affiche"] for u in r.json()["utilisateurs"]] == ["M. Martin", "M. Suspendu", "Mme Invitée"]
     for mot in ("hache", "totp", "secret", "argon", "$argon2"):
         assert mot not in r.text
@@ -621,3 +632,50 @@ def test_utilisateurs__ecritures_d_une_origine_etrangere__403(
     assert r.status_code == 403
     assert lignes(fabrique, JOURNAL) == []
     assert lignes(fabrique, UTILISATEUR, UTILISATEUR.c.email == "nouveau@essai.local") == []
+
+
+# --- fiche d'une personne (Q6) ---------------------------------------------------------------------------
+
+
+def test_fiche__gerant__meme_contenu_que_la_ligne_de_la_liste(fabrique: sessionmaker[Session]) -> None:
+    gerant = _gerant(fabrique)
+    cible = creer_compte(fabrique, email="cible@essai.local")
+    c = client(fabrique)
+    fiche = c.get(f"/utilisateurs/{cible.id}", headers=entetes(gerant))
+    (ligne,) = [
+        u
+        for u in c.get("/utilisateurs", headers=entetes(gerant)).json()["utilisateurs"]
+        if u["id"] == str(cible.id)
+    ]
+    assert (fiche.status_code, fiche.json()) == (200, ligne)
+    assert (ligne["invitation_envoyee_le"], ligne["invitation_expire_le"]) == (None, None)
+
+
+def test_fiche__invite__date_d_envoi_et_fin_de_validite_du_dernier_lien(
+    fabrique: sessionmaker[Session],
+) -> None:
+    gerant = _gerant(fabrique)
+    c = client(fabrique)
+    r = c.post(
+        "/utilisateurs/inviter",
+        json={"email": "durand@essai.local", "nom_affiche": "Mme Durand", "role": "associe"},
+        headers=entetes(gerant),
+    )
+    cible = r.json()["id"]
+    assert c.get(f"/utilisateurs/{cible}", headers=entetes(gerant)).json()["invitation_envoyee_le"] is None
+    executer_jobs(fabrique, ExpediteurMemoire())
+    (lien,) = lignes(fabrique, INVITATION)
+    fiche = c.get(f"/utilisateurs/{cible}", headers=entetes(gerant)).json()
+    assert fiche["invitation_envoyee_le"] == lien["cree_le"].isoformat()  # type: ignore[attr-defined]
+    assert fiche["invitation_expire_le"] == lien["expire_le"].isoformat()  # type: ignore[attr-defined]
+    # lien expiré : les dates restent affichées, le statut devient « Invitation expirée »
+    with fabrique() as s, s.begin():
+        s.execute(update(INVITATION).values(expire_le=func.now() - timedelta(seconds=1)))
+    fiche = c.get(f"/utilisateurs/{cible}", headers=entetes(gerant)).json()
+    assert fiche["statut_libelle"] == message("statut.invitation_expiree")
+    assert fiche["invitation_envoyee_le"] == lien["cree_le"].isoformat()  # type: ignore[attr-defined]
+
+
+def test_fiche__inconnu__404(fabrique: sessionmaker[Session]) -> None:
+    gerant = _gerant(fabrique)
+    assert client(fabrique).get(f"/utilisateurs/{uuid.uuid4()}", headers=entetes(gerant)).status_code == 404

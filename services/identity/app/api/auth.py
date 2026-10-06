@@ -12,6 +12,7 @@ from app.api.saisie import nom_affiche_saisi
 from app.engines import durees
 from app.libelles import message
 from app.services import activation, connexion, reinitialisation
+from commun.identite import MESSAGE_NON_AUTHENTIFIE
 
 COOKIE_PRE = "lp_pre"
 COOKIE_SESSION = "lp_session"
@@ -130,6 +131,15 @@ def verify(request: Request) -> Response:
     if entetes is None:
         return Response(status_code=401)
     return Response(status_code=200, headers=entetes)
+
+
+@routeur.get("/etat-session")
+def etat_session(request: Request) -> dict[str, str]:
+    """Après un 401 : « accès suspendu » ou, dans tous les autres cas, la même réponse que pour une session
+    expirée ; rien d'autre n'est révélé sur le cookie présenté (R0-07)."""
+    if connexion.session_suspendue(request.app.state.fabrique, request.cookies.get(COOKIE_SESSION)):
+        return {"code": "compte_suspendu", "message": message("connexion.compte_suspendu")}
+    return {"code": "session_expiree", "message": MESSAGE_NON_AUTHENTIFIE}
 
 
 # --- activation depuis le lien d'invitation (ADR 0006) ---------------------------------------------------

@@ -57,6 +57,20 @@ def lister(_: Gerant, request: Request) -> dict[str, Any]:
     return {"utilisateurs": utilisateurs.lister(request.app.state.fabrique)}
 
 
+@routeur.post("/{utilisateur_id}/annuler-invitation", status_code=204)
+def annuler_invitation(utilisateur_id: UUID, gerant: Gerant, request: Request) -> Response:
+    utilisateurs.annuler_invitation(
+        request.app.state.fabrique, gerant.user_id, utilisateur_id, ip_de(request)
+    )
+    return Response(status_code=204)
+
+
+@routeur.get("/{utilisateur_id}")
+def consulter(utilisateur_id: UUID, _: Gerant, request: Request) -> dict[str, Any]:
+    """Fiche d'une personne (gérer son accès) : mêmes informations qu'une ligne de la liste."""
+    return utilisateurs.consulter(request.app.state.fabrique, utilisateur_id)
+
+
 @routeur.patch("/{utilisateur_id}")
 def modifier(utilisateur_id: UUID, corps: Modification, gerant: Gerant, request: Request) -> dict[str, Any]:
     """Rôle, suspension ou réactivation ; au moins un des deux champs."""

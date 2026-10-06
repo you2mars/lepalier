@@ -75,7 +75,9 @@ def creer_gerant(fabrique: Fabrique, email: str, nom: str, url_publique: str) ->
     nom_affiche = _saisie(nom_affiche_saisi, nom)
     with fabrique() as s, s.begin():
         existe = s.execute(
-            select(UTILISATEUR.c.id).where(func.lower(UTILISATEUR.c.email) == adresse.lower())
+            select(UTILISATEUR.c.id).where(
+                func.lower(UTILISATEUR.c.email) == adresse.lower(), UTILISATEUR.c.statut != "annule"
+            )
         ).first()
         if existe is not None:
             raise Refus(message("utilisateurs.email_deja_utilise"))
@@ -109,7 +111,9 @@ def reinitialiser_acces(fabrique: Fabrique, email: str, url_publique: str) -> st
         u = (
             s.execute(
                 select(UTILISATEUR)
-                .where(func.lower(UTILISATEUR.c.email) == email.strip().lower())
+                .where(
+                    func.lower(UTILISATEUR.c.email) == email.strip().lower(), UTILISATEUR.c.statut != "annule"
+                )
                 .with_for_update()
             )
             .mappings()

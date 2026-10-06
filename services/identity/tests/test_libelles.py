@@ -85,6 +85,7 @@ AUTRES_MESSAGES = {
         "Demandez-en un nouveau au gérant de la SCI."
     ),
     "invitation.deja_activee": "Ce compte est déjà activé : il n'y a pas d'invitation à renvoyer.",
+    "invitation.annulation_impossible": "Ce compte est déjà activé : il n'y a pas d'invitation à annuler.",
     "reinitialisation.demande_envoyee": (
         "Si un compte existe pour cette adresse, un e-mail vient d'être envoyé avec un lien valable 1 heure. "
         "Pensez à regarder dans les courriers indésirables."
@@ -172,10 +173,10 @@ def test_libelles__aucune_cle_en_double_dans_le_fichier() -> None:
     assert doublons == []
 
 
-def test_libelles__33_messages_tous_verifies_mot_pour_mot() -> None:
+def test_libelles__34_messages_tous_verifies_mot_pour_mot() -> None:
     attendues = {f"mot_de_passe.{m.value}" for m in Motif} | set(AUTRES_MESSAGES) | set(STATUTS)
     assert _toutes_les_cles() == attendues
-    assert len(attendues) == 33
+    assert len(attendues) == 34
 
 
 @pytest.mark.parametrize("cle", sorted(AUTRES_MESSAGES))
@@ -208,6 +209,7 @@ UTILISEES_PAR_L_INVITATION = {
     "activation.code_incorrect",
     "invitation.lien_invalide",
     "invitation.deja_activee",
+    "invitation.annulation_impossible",
     "nom_affiche.invalide",
     "utilisateurs.email_invalide",
     "utilisateurs.email_deja_utilise",

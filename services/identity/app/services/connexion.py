@@ -90,7 +90,12 @@ def connecter(fabrique: Fabrique, email: str, mot_de_passe: str, ip: str, cles: 
             refus = refuser(429, "trop_d_essais", "connexion.trop_d_essais")
         else:
             u = (
-                s.execute(select(UTILISATEUR).where(func.lower(UTILISATEUR.c.email) == email.strip().lower()))
+                s.execute(
+                    select(UTILISATEUR).where(
+                        func.lower(UTILISATEUR.c.email) == email.strip().lower(),
+                        UTILISATEUR.c.statut != "annule",
+                    )
+                )
                 .mappings()
                 .first()
             )
@@ -451,3 +456,21 @@ def verifier_session(
         return None
     utilisateur_id, role, maintenant = ligne
     return entetes_signes(utilisateur_id, role, int(maintenant) + VALIDITE_ENTETES_SECONDES, cles.hmac[0])
+
+
+# --- motif d'une session devenue invalide (front, après un 401) ------------------------------------------
+
+_SUSPENDUE = text(
+    """
+    SELECT 1 FROM session s JOIN utilisateur u ON u.id = s.utilisateur_id
+     WHERE s.empreinte = :empreinte AND s.motif_revocation = 'suspension' AND u.statut = 'suspendu'
+    """
+)
+
+
+def session_suspendue(fabrique: Fabrique, jeton_session: str | None) -> bool:
+    """Vrai seulement si cette session a été coupée par une suspension toujours en cours (R0-07)."""
+    if not jeton_session:
+        return False
+    with fabrique() as s:
+        return s.execute(_SUSPENDUE, {"empreinte": empreinte(jeton_session)}).first() is not None

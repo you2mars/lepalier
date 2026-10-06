@@ -375,3 +375,17 @@ def test_utilisateur__nom_affiche_avec_octet_nul__refuse_par_postgresql(
 )
 def test_utilisateur__nom_affiche_ordinaire__accepte(fabrique: sessionmaker[Session], nom: str) -> None:
     _ecrire(fabrique, lambda s: _utilisateur(s, nom_affiche=nom))
+
+
+# --- 0006 : invitation annulée (statut annule, adresse réutilisable) ----------------------------------
+
+
+def test_utilisateur__statut_annule_accepte(fabrique: sessionmaker[Session]) -> None:
+    _ecrire(fabrique, lambda s: _utilisateur(s, statut="annule"))
+
+
+def test_utilisateur__adresse_d_une_invitation_annulee_reutilisable(fabrique: sessionmaker[Session]) -> None:
+    _ecrire(fabrique, lambda s: _utilisateur(s, email="durand@essai.local", statut="annule"))
+    _ecrire(fabrique, lambda s: _utilisateur(s, email="Durand@essai.local", statut="annule"))
+    _ecrire(fabrique, lambda s: _utilisateur(s, email="DURAND@essai.local"))
+    _refuse(fabrique, lambda s: _utilisateur(s, email="durand@ESSAI.local"))

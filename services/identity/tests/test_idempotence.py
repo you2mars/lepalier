@@ -37,10 +37,11 @@ def _ecritures(cible: uuid.UUID) -> list[tuple[str, str, dict[str, Any] | None]]
         ("POST", f"/utilisateurs/{cible}/renvoyer-invitation", None),
         ("PATCH", f"/utilisateurs/{cible}", {"role": "operateur"}),
         ("POST", f"/utilisateurs/{cible}/reinitialiser-acces", None),
+        ("POST", f"/utilisateurs/{cible}/annuler-invitation", None),
     ]
 
 
-@pytest.mark.parametrize("rang", range(4))
+@pytest.mark.parametrize("rang", range(5))
 def test_utilisateurs__ecritures_sans_cle_d_idempotence__400(
     fabrique: sessionmaker[Session], rang: int
 ) -> None:

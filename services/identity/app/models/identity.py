@@ -61,7 +61,8 @@ UTILISATEUR = Table(
     Column("active_le", TZ),
     Column("suspendu_le", TZ),
     CheckConstraint("role IN ('gerant', 'associe', 'operateur')", name="ck_utilisateur_role"),
-    CheckConstraint("statut IN ('invite', 'actif', 'suspendu')", name="ck_utilisateur_statut"),
+    # 0006 : annule = invitation annulée par un gérant (jamais affiché, adresse réutilisable)
+    CheckConstraint("statut IN ('invite', 'actif', 'suspendu', 'annule')", name="ck_utilisateur_statut"),
     CheckConstraint("origine IN ('invitation', 'commande_locale')", name="ck_utilisateur_origine"),
     CheckConstraint(
         "char_length(nom_affiche) BETWEEN 1 AND 60 AND nom_affiche !~ '@' AND nom_affiche ~ '[^[:space:]]'",
@@ -83,7 +84,12 @@ UTILISATEUR = Table(
         name="ck_utilisateur_totp_secret_chiffre",
     ),
 )
-Index("uq_utilisateur_email", func.lower(UTILISATEUR.c.email), unique=True)
+Index(
+    "uq_utilisateur_email",
+    func.lower(UTILISATEUR.c.email),
+    unique=True,
+    postgresql_where=text("statut <> 'annule'"),
+)
 
 APPAREIL = Table(
     "appareil",

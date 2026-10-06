@@ -22,7 +22,8 @@
   },
   "invitation": {
     "lien_invalide": "Ce lien d'invitation n'est plus valable : il a expiré ou a déjà servi. Demandez-en un nouveau au gérant de la SCI.",
-    "deja_activee": "Ce compte est déjà activé : il n'y a pas d'invitation à renvoyer."
+    "deja_activee": "Ce compte est déjà activé : il n'y a pas d'invitation à renvoyer.",
+    "annulation_impossible": "Ce compte est déjà activé : il n'y a pas d'invitation à annuler."
   },
   "reinitialisation": {
     "demande_envoyee": "Si un compte existe pour cette adresse, un e-mail vient d'être envoyé avec un lien valable 1 heure. Pensez à regarder dans les courriers indésirables.",
