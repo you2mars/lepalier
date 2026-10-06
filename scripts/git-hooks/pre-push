@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Hook Git pre-push (règle 9 de CLAUDE.md) : aucun push direct sur main, quelle que soit la branche locale.
+# La protection de branche de GitHub n'est pas disponible pour un dépôt privé sur le plan gratuit : cette
+# discipline est outillée ici. Installé par make hooks (appelé par make doctor).
+set -euo pipefail
+while read -r _ref_locale _sha_local ref_distante _sha_distant; do
+  if [ "$ref_distante" = "refs/heads/main" ]; then
+    echo "Refusé : aucun push direct sur main (règle 9 de CLAUDE.md)." >&2
+    echo "Poussez une branche, ouvrez une PR, et fusionnez seulement quand la CI est verte." >&2
+    exit 1
+  fi
+done
+exit 0

@@ -5,9 +5,11 @@ DEV_CERTS ?= deploy/nginx/certs
 # .env (ignoré par git, sans secret) : adresse de la VM écrite par make dev-certs, lue par Docker Compose pour
 # toute commande ; ENV_FICHIER ne sert qu'aux tests (fichier temporaire)
 ENV_FICHIER ?= .env
+# dépôt où make hooks installe le hook Git ; un autre dossier ne sert qu'aux tests
+DEPOT_GIT ?= .
 COMPOSE_DEV := docker compose -f compose.dev.yml
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
-.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images audit recette tick ci
+.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images audit hooks recette tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -16,6 +18,14 @@ doctor: ## Vérifie l'outillage local (docker, uv, node, gh, claude, jq) et inst
 	@for t in docker uv node npm gh claude jq; do command -v $$t >/dev/null && echo "ok   $$t" || echo "MANQUE $$t"; done
 	@python3 -c "import jsonschema, yaml" 2>/dev/null && echo "ok   jsonschema + pyyaml" || echo "MANQUE python3-jsonschema python3-yaml (sudo apt install -y python3-jsonschema python3-yaml)"
 	@docker compose version
+	@$(MAKE) --no-print-directory hooks
+
+hooks: ## Installe le hook Git qui refuse tout push direct sur main (règle 9 de CLAUDE.md)
+	@cible="$(CURDIR)/scripts/git-hooks/pre-push"; hooks="$$(git -C $(DEPOT_GIT) rev-parse --absolute-git-dir)/hooks"; lien="$$hooks/pre-push"; \
+	if [ -L "$$lien" ] && [ "$$(readlink -f "$$lien")" = "$$(readlink -f "$$cible")" ]; then echo "Hook pre-push déjà installé."; exit 0; fi; \
+	if [ -e "$$lien" ] || [ -L "$$lien" ]; then echo "Un hook pre-push existe déjà ($$lien) : rien n'a été remplacé. Retirez-le ou reprenez-le à la main, puis relancez make hooks."; exit 1; fi; \
+	mkdir -p "$$hooks" && ln -s "$$(realpath --relative-to="$$hooks" "$$cible")" "$$lien" && \
+	echo "Hook pre-push installé : aucun push direct sur main (règle 9 de CLAUDE.md)."
 
 dev-up: images ## Démarre la plateforme de développement (images locales) et attend qu'elle soit en bonne santé
 	$(COMPOSE_DEV) up -d --wait --wait-timeout 240

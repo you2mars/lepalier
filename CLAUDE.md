@@ -49,6 +49,7 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 6. Demande avant toute commande destructive (`docker compose down -v`, `git push --force`, suppression de données) ; aucune suppression de fichier ou de dossier hors de /tmp sans mon accord, quel que soit l'outil (rm, shutil, find -delete, git clean…).
 7. Interface, messages, documents et erreurs en français clair, sans jargon technique (voir UX_CHARTE § 3).
 8. Le dépôt fait foi pour les textes validés (libellés, e-mails, messages, vérifiés mot pour mot par les tests) ; en cas de doute, demande à Youssef, ne relis jamais les transcriptions de session.
+9. Jamais de push sur main ni de fusion sans CI verte (la protection de branche de GitHub n'est pas disponible : hook `pre-push` installé par `make hooks`).
 
 ## Processus d'un lot (voir docs/PLAN_DE_DEV.md)
 1. `/lot N` : lire le lot, proposer l'ordre des tâches, créer la branche.
