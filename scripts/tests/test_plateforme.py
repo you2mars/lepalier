@@ -142,6 +142,7 @@ class Plateforme:
     env: dict[str, str]
     secrets: Path
     certificat: Path
+    fichier_env: Path
 
     @property
     def https(self) -> str:
@@ -156,6 +157,9 @@ class Plateforme:
                 str(RACINE / "compose.dev.yml"),
                 "-f",
                 str(ESSAI),
+                # .env écrit par make dev-certs, comme sur la VM ; jamais le .env du dépôt
+                "--env-file",
+                str(self.fichier_env),
                 "-p",
                 PROJET,
                 *arguments,
@@ -188,17 +192,17 @@ def plateforme(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Plateforme]
     dossier = tmp_path_factory.mktemp("plateforme")
     secrets = dossier / "secrets"
     certificats = dossier / "certs"
+    fichier_env = dossier / ".env"
     subprocess.run(
-        ["make", "dev-certs", f"DEV_CERTS={certificats}", "IP=127.0.0.1"],
+        ["make", "dev-certs", f"DEV_CERTS={certificats}", f"ENV_FICHIER={fichier_env}", "IP=192.0.2.10"],
         cwd=RACINE,
         check=True,
         capture_output=True,
     )
     env = {
-        **os.environ,
+        **{nom: valeur for nom, valeur in os.environ.items() if nom != "LEPALIER_URL_PUBLIQUE"},
         "SECRETS_DIR": str(secrets),
         "LEPALIER_SECRETS": str(secrets),
-        "LEPALIER_URL_PUBLIQUE": URL_PUBLIQUE,
         "LEPALIER_PORT_POSTGRES": str(_port_libre()),
         "LEPALIER_PORT_NATS": str(_port_libre()),
         "LEPALIER_PORT_NATS_SUIVI": str(_port_libre()),
@@ -209,7 +213,7 @@ def plateforme(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Plateforme]
         "LEPALIER_PORT_HTTPS": str(_port_libre()),
     }
     subprocess.run(["bash", "scripts/dev-secrets.sh"], cwd=RACINE, env=env, check=True, capture_output=True)
-    essai = Plateforme(env=env, secrets=secrets, certificat=certificats / "dev.crt")
+    essai = Plateforme(env=env, secrets=secrets, certificat=certificats / "dev.crt", fichier_env=fichier_env)
     assert PROJET == "lepalier-essai"  # down -v ne vise jamais la plateforme de dev (lepalier-dev)
     try:
         _demarrer(essai)
@@ -232,6 +236,16 @@ def _reseaux(plateforme: Plateforme, service: str) -> set[str]:
         check=True,
     ).stdout
     return {nom.removeprefix(f"{PROJET}_") for nom in json.loads(sortie)}
+
+
+def test_compose__commandes_sans_variable_dans_l_environnement(plateforme: Plateforme) -> None:
+    """R0-28 : l'adresse de la VM vient du .env écrit par make dev-certs ; docker compose ps, logs, exec et
+    make tick fonctionnent sans que la variable soit fournie par make dev-up."""
+    assert "LEPALIER_URL_PUBLIQUE" not in plateforme.env
+    assert plateforme.fichier_env.read_text() == f"LEPALIER_URL_PUBLIQUE={URL_PUBLIQUE}\n"
+    assert "identity" in plateforme.compose("ps", "--services", "--status", "running").stdout.split()
+    assert plateforme.compose("exec", "-T", "identity", "true").returncode == 0
+    assert plateforme.compose("logs", "--tail", "1", "identity").returncode == 0
 
 
 def test_compose__reseaux_de_chaque_conteneur(plateforme: Plateforme) -> None:

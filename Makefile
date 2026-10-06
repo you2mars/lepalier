@@ -2,9 +2,10 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 SERVICES := identity referentiel facturation charges-eau documents envois veille reporting
 DEV_CERTS ?= deploy/nginx/certs
-# adresse de la VM de dev : première adresse IP du certificat de make dev-certs (liens des e-mails, APP_URL_PUBLIQUE)
-ADRESSE_VM = $(shell [ -f $(DEV_CERTS)/dev.crt ] && openssl x509 -in $(DEV_CERTS)/dev.crt -noout -ext subjectAltName | grep -oE 'IP Address:[0-9.]+' | head -1 | cut -d: -f2)
-COMPOSE_DEV = LEPALIER_URL_PUBLIQUE="$(if $(ADRESSE_VM),https://$(ADRESSE_VM))" docker compose -f compose.dev.yml
+# .env (ignoré par git, sans secret) : adresse de la VM écrite par make dev-certs, lue par Docker Compose pour
+# toute commande ; ENV_FICHIER ne sert qu'aux tests (fichier temporaire)
+ENV_FICHIER ?= .env
+COMPOSE_DEV := docker compose -f compose.dev.yml
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
 .PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images recette tick ci
 
@@ -17,21 +18,28 @@ doctor: ## Vérifie l'outillage local (docker, uv, node, gh, claude, jq) et inst
 	@docker compose version
 
 dev-up: images ## Démarre la plateforme de développement (images locales) et attend qu'elle soit en bonne santé
-	@[ -n "$(ADRESSE_VM)" ] || { echo "Certificat de la VM absent ($(DEV_CERTS)/dev.crt) : lancez d'abord make dev-certs."; exit 1; }
 	$(COMPOSE_DEV) up -d --wait --wait-timeout 240
 dev-down: ## Arrête la plateforme (volumes conservés)
 	$(COMPOSE_DEV) down
-dev-certs: ## Certificat HTTPS auto-signé de la VM de dev : make dev-certs [IP=192.168.1.20] [FORCE=1]
+dev-certs: ## Certificat HTTPS auto-signé de la VM de dev et son adresse dans .env : make dev-certs [IP=192.168.1.20] [FORCE=1]
 	@ip="$(IP)"; [ -n "$$ip" ] || ip=$$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($$i=="src") print $$(i+1)}'); \
 	echo "$$ip" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$$' || { echo "Adresse IP de la VM introuvable ou invalide : make dev-certs IP=…"; exit 1; }; \
-	if [ -f $(DEV_CERTS)/dev.crt ] && [ -z "$(FORCE)" ]; then echo "Certificat déjà présent ($(DEV_CERTS)/dev.crt) ; FORCE=1 pour le régénérer."; exit 0; fi; \
-	mkdir -p $(DEV_CERTS) && (umask 077 && openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 365 \
-	  -keyout $(DEV_CERTS)/dev.key -out $(DEV_CERTS)/dev.crt -subj "/CN=LePalier dev" \
-	  -addext "subjectAltName=IP:$$ip,IP:127.0.0.1,DNS:localhost" \
-	  -addext "basicConstraints=critical,CA:FALSE" -addext "extendedKeyUsage=serverAuth" 2>/dev/null) && \
-	chmod 644 $(DEV_CERTS)/dev.crt && \
-	echo "Certificat créé pour https://$$ip/ (valable 365 jours) dans $(DEV_CERTS)/" && \
-	openssl x509 -in $(DEV_CERTS)/dev.crt -noout -fingerprint -sha256
+	if [ -f $(DEV_CERTS)/dev.crt ] && [ -z "$(FORCE)" ]; then \
+	  echo "Certificat déjà présent ($(DEV_CERTS)/dev.crt) ; FORCE=1 pour le régénérer."; \
+	else \
+	  mkdir -p $(DEV_CERTS) && (umask 077 && openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 365 \
+	    -keyout $(DEV_CERTS)/dev.key -out $(DEV_CERTS)/dev.crt -subj "/CN=LePalier dev" \
+	    -addext "subjectAltName=IP:$$ip,IP:127.0.0.1,DNS:localhost" \
+	    -addext "basicConstraints=critical,CA:FALSE" -addext "extendedKeyUsage=serverAuth" 2>/dev/null) && \
+	  chmod 644 $(DEV_CERTS)/dev.crt && \
+	  echo "Certificat créé pour https://$$ip/ (valable 365 jours) dans $(DEV_CERTS)/" && \
+	  openssl x509 -in $(DEV_CERTS)/dev.crt -noout -fingerprint -sha256 || exit 1; \
+	fi; \
+	adresse=$$(openssl x509 -in $(DEV_CERTS)/dev.crt -noout -ext subjectAltName | grep -oE 'IP Address:[0-9.]+' | head -1 | cut -d: -f2); \
+	tmp=$$(mktemp); touch $(ENV_FICHIER); \
+	{ grep -v '^LEPALIER_URL_PUBLIQUE=' $(ENV_FICHIER) || true; echo "LEPALIER_URL_PUBLIQUE=https://$$adresse"; } > "$$tmp" && \
+	cat "$$tmp" > $(ENV_FICHIER) && rm -f "$$tmp" && \
+	echo "Adresse de la VM pour les liens des e-mails : https://$$adresse (écrite dans $(ENV_FICHIER), lue par Docker Compose)."
 dev-secrets: ## Secrets de dev dans deploy/secrets/ (ADR 0007), jamais affichés : make dev-secrets [FORCE=1]
 	FORCE=$(FORCE) bash scripts/dev-secrets.sh
 logs: ## Logs d'un service : make logs SVC=identity
