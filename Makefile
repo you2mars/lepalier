@@ -7,7 +7,7 @@ DEV_CERTS ?= deploy/nginx/certs
 ENV_FICHIER ?= .env
 COMPOSE_DEV := docker compose -f compose.dev.yml
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
-.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images recette tick ci
+.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images audit recette tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -64,6 +64,10 @@ typecheck: ## mypy strict sur commun et les moteurs, tsc sur le front
 	@for s in $(SERVICES) ; do if [ -d services/$$s/app/engines ]; then (cd services/$$s && uv run mypy --strict app/engines) || exit 1; fi; done
 	@if [ -f front/package.json ]; then cd front && npx tsc --noEmit; fi
 
+audit: ## Audit des dépendances (pip-audit, npm audit) : échec sur une vulnérabilité haute, critique ou de gravité inconnue
+	uv run --project libs/commun --with pip-audit python scripts/audit_python.py libs/commun $(foreach s,$(SERVICES),$(wildcard services/$(s)))
+	@if [ -f front/package-lock.json ]; then cd front && npm audit --audit-level=high; fi
+
 contracts: ## Valide les contrats d'événements (environnement de libs/commun : jsonschema, pyyaml, rfc3339-validator)
 	uv run --project libs/commun python scripts/check_contracts.py
 
@@ -102,4 +106,4 @@ test-gabarit: ## Lint du gabarit, puis typage et tests d'un service généré da
 	uv run --project "$$dossier" ruff format --check services/_template; \
 	cd "$$dossier" && uv run mypy app migrations tests && uv run pytest -p no:cacheprovider --cov-fail-under=80
 
-ci: lint typecheck contracts test ## Ce que la CI exécute
+ci: lint typecheck contracts test audit ## Ce que la CI exécute

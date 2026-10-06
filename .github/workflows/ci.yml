@@ -14,6 +14,15 @@ jobs:
       - uses: astral-sh/setup-uv@v3
       - name: Contrats (même environnement qu'en local, formats date-time compris)
         run: make contracts
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Dépendances Python (pip-audit) et du front (npm audit) ; échec sur une vulnérabilité haute, critique ou inconnue
+        run: make audit
   commun:
     runs-on: ubuntu-latest
     defaults:
