@@ -88,6 +88,30 @@ services:
       timeout: 3s
       retries: 30
 
+  # Frontal (ADR 0003) : TLS, auth_request vers identity, limites de débit, en-têtes d'identité réécrits
+  nginx:
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    environment:
+      LEPALIER_WIREGUARD: "${LEPALIER_WIREGUARD:-10.8.0.0/24}"
+      # seules les variables LEPALIER_* sont remplacées dans les gabarits, jamais celles de nginx
+      NGINX_ENVSUBST_FILTER: "LEPALIER_"
+    volumes:
+      - ./deploy/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/proxy_common.conf:/etc/nginx/proxy_common.conf:ro
+      - ./deploy/nginx/entetes_identite_vides.conf:/etc/nginx/entetes_identite_vides.conf:ro
+      - ./deploy/nginx/templates:/etc/nginx/templates:ro
+      - ./deploy/nginx/maintenance.html:/usr/share/nginx/maintenance/maintenance.html:ro
+      - "${LEPALIER_CERTS:-./deploy/nginx/certs}:/etc/nginx/certs:ro"
+    # conf.d vide : seul le serveur LePalier (gabarit ci-dessus), pas le serveur par défaut de l'image
+    tmpfs: [/etc/nginx/conf.d]
+    networks: [edge, backend]
+    ports: ["${LEPALIER_ADRESSE_HTTPS:-0.0.0.0}:${LEPALIER_PORT_HTTPS:-443}:443"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/_sante"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   pgdata: {}
   natsdata: {}
