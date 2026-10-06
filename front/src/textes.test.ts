@@ -10,6 +10,7 @@ describe("textes du front", () => {
     expect(TEXTES.etats).toEqual({ fait: "Fait", attention: "Attention", erreur: "Erreur" });
     expect(TEXTES.envoiEnCours).toBe("Envoi en cours…");
     expect(TEXTES.allerAuContenu).toBe("Aller au contenu");
+    expect(TEXTES.retourAccueil).toBe("Retour à l'accueil");
     expect(TEXTES.motDePasse).toEqual({
       afficher: "Afficher",
       masquer: "Masquer",
@@ -36,5 +37,7 @@ describe("textes du front", () => {
       new RegExp(`${nom} = "([^"]+)"`).exec(readFileSync(join(racine, fichier), "utf8"))?.[1];
     expect(TEXTES.commun.erreurInattendue).toBe(constante("erreurs.py", "MESSAGE_INTERNE"));
     expect(TEXTES.commun.sessionExpiree).toBe(constante("identite.py", "MESSAGE_NON_AUTHENTIFIE"));
+    const erreurs = readFileSync(join(racine, "erreurs.py"), "utf8");
+    expect(/404: \("not_found", "([^"]+)"\)/.exec(erreurs)?.[1]).toBe(TEXTES.commun.introuvable);
   });
 });

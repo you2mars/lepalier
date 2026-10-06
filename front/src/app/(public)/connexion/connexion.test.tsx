@@ -42,6 +42,11 @@ describe("Se connecter : structure (R0-01, UX-1, front/CLAUDE.md)", () => {
     expect(screen.getByLabelText(TEXTES.connexion.motDePasse)).toHaveAttribute("autocomplete", "current-password");
   });
 
+  it("formulaire en POST : sans JavaScript, le mot de passe ne part jamais dans l'adresse", () => {
+    const { container } = render(<FormulaireConnexion />);
+    expect(container.querySelector("form")).toHaveAttribute("method", "post");
+  });
+
   it("titre de l'onglet « Se connecter — LePalier »", () => {
     expect(metadata.title).toBe("Se connecter — LePalier");
   });

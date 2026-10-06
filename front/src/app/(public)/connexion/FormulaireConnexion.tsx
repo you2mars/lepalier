@@ -70,7 +70,8 @@ export function FormulaireConnexion({ motif, retour }: { motif?: string | null; 
     <>
       {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
       <h1>{TEXTES.connexion.titre}</h1>
-      <form onSubmit={soumettre} noValidate>
+      {/* method="post" : sans JavaScript, le mot de passe ne part jamais dans l'adresse */}
+      <form method="post" onSubmit={soumettre} noValidate>
         <Champ
           id="email"
           libelle={TEXTES.connexion.adresse}

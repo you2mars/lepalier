@@ -24,5 +24,7 @@ export const TEXTES = {
   commun: {
     erreurInattendue: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",
     sessionExpiree: "Votre session a expiré ou n'est pas reconnue. Reconnectez-vous.",
+    introuvable: "Cette page ou cette information n'existe pas.",
   },
+  retourAccueil: "Retour à l'accueil",
 } as const;
