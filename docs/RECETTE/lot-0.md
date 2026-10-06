@@ -25,7 +25,7 @@ Environnement : VM de dev sur le réseau local, `https://<adresse IP de la VM de
 | R0-10 | — | Depuis un même poste, 5 mots de passe faux de suite sur un compte existant, puis un 6e essai avec le bon mot de passe ; recommencer avec un e-mail inconnu | Message « Trop d'essais. Réessayez dans 15 minutes. » ; 6e essai refusé avec le même message ; message identique pour l'e-mail inconnu (TEC-SEC-01, ADR 0006) | | |
 | R0-11 | — | Avec `curl`, appeler `/api/referentiel/lots` sans cookie | 401 JSON `{code: unauthenticated}` (TEC-WEB-03) | | |
 | R0-12 | — | Avec `curl`, envoyer `X-User-Id` et `X-Role: gerant` forgés | 401/403 : les en-têtes sont écrasés par nginx (TEC-WEB-04) | | |
-| R0-13 | — | Ouvrir `/internal/healthz` depuis un poste du réseau local (via nginx) | 404 (TEC-SEC-04) | | |
+| R0-13 | — | Ouvrir `/internal/healthz`, `/api/identity/internal/healthz` et `/api/identity/auth/verify` depuis un poste du réseau local (via nginx) | 404 pour les trois adresses (TEC-SEC-04, ADR 0006) | | |
 | R0-14 | Associé | Utiliser un code de secours deux fois | Première fois acceptée, seconde refusée (TEC-SEC-01) | | |
 | R0-15 | Compte associé actif | Avec `curl`, envoyer 5 mots de passe faux sur `/api/identity/auth/connexion` en ajoutant un en-tête `X-Real-IP` différent à chaque essai, puis un 6e essai avec le bon mot de passe | 6e essai refusé avec « Trop d'essais. Réessayez dans 15 minutes. » : l'en-tête forgé est ignoré et le verrou s'applique à l'adresse réelle (ADR 0006, TEC-WEB-04) | | |
 
