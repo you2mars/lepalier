@@ -30,6 +30,11 @@ openssl rand -hex 32 > "$TMP/cle_hmac_identite"
 # première chiffre ; pseudonymisation des e-mails dans les tentatives de connexion
 printf '1 %s\n' "$(openssl rand -hex 32)" > "$TMP/cle_chiffrement_identity"
 openssl rand -hex 32 > "$TMP/cle_pseudonymisation_identity"
+# mot de passe du rôle svc_<service> de chaque base, monté sous le nom mdp_base dans le service et dans son
+# conteneur <service>-migrations, qui aligne le rôle sur ce secret à chaque démarrage
+for service in $SERVICES; do
+  openssl rand -hex 32 > "$TMP/mdp_base_$service"
+done
 while read -r appelant appele reste || [ -n "${appelant:-}" ]; do
   case "${appelant:-}" in "" | "#"*) continue ;; esac
   if [[ -n "${reste:-}" || "$SERVICES" != *" $appelant "* || "$SERVICES" != *" ${appele:-?} "* || "$appelant" == "$appele" ]]; then

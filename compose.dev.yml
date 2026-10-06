@@ -1,31 +1,93 @@
 # Plateforme de développement (TEC-OPS-10 "dev") : infrastructure + services au fur et à mesure des lots.
+# Démarrage : make dev-secrets, make dev-certs, make dev-up (images locales construites par make images).
+# Les variables LEPALIER_* ont des valeurs par défaut pour la VM de dev ; make test-plateforme les change pour
+# un projet d'essai séparé (lepalier-essai), sans toucher à cette plateforme.
 name: lepalier-dev
+
+# Réseaux (TEC-SEC-06) : aucun conteneur sur plus de réseaux que nécessaire.
+networks:
+  edge: {}
+  # services, NATS et PostgreSQL ; interne : aucune sortie vers Internet
+  backend: { internal: true }
+  # e-mails de compte d'identity (ADR 0006) ; Mailpit en dev
+  egress-mail: {}
+  # dev seulement : ports de PostgreSQL et NATS publiés sur 127.0.0.1 (un réseau interne ne publie rien)
+  outils-dev: {}
+
+# Secrets en fichiers (ADR 0007), générés par make dev-secrets, 0400 au nom de l'uid 10001
+secrets:
+  cle_hmac_identite: { file: "${LEPALIER_SECRETS:-./deploy/secrets}/cle_hmac_identite" }
+  cle_chiffrement_identity: { file: "${LEPALIER_SECRETS:-./deploy/secrets}/cle_chiffrement_identity" }
+  cle_pseudonymisation_identity: { file: "${LEPALIER_SECRETS:-./deploy/secrets}/cle_pseudonymisation_identity" }
+  mdp_base_identity: { file: "${LEPALIER_SECRETS:-./deploy/secrets}/mdp_base_identity" }
+
 services:
   postgres:
     image: postgres:16
     environment:
+      # dev seulement, port publié sur 127.0.0.1 (décision du 6 octobre 2026) ; secret en production (lot 2)
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
       POSTGRES_DB: admin
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./deploy/postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
-    ports: ["127.0.0.1:5432:5432"]
+    networks: [backend, outils-dev]
+    ports: ["127.0.0.1:${LEPALIER_PORT_POSTGRES:-5432}:5432"]
     healthcheck: { test: ["CMD-SHELL", "pg_isready -U admin"], interval: 5s, timeout: 3s, retries: 20 }
   nats:
     image: nats:2-alpine
     command: ["-js", "-sd", "/data", "-m", "8222"]
     volumes: [natsdata:/data]
-    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8222:8222"]
+    networks: [backend, outils-dev]
+    ports: ["127.0.0.1:${LEPALIER_PORT_NATS:-4222}:4222", "127.0.0.1:${LEPALIER_PORT_NATS_SUIVI:-8222}:8222"]
     healthcheck: { test: ["CMD", "wget", "-qO-", "http://localhost:8222/healthz"], interval: 5s, timeout: 3s, retries: 20 }
   mailpit:
     image: axllent/mailpit
-    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
-  # nginx + front + services : décommenter au lot 0 (identity) puis à chaque /nouveau-service
-  # identity:
-  #   build: { context: ., dockerfile: services/identity/Dockerfile }
-  #   environment: { APP_ENV: dev, APP_DATABASE_URL: "postgresql+psycopg://svc_identity:changeme@postgres:5432/identity", APP_NATS_URL: "nats://nats:4222" }
-  #   depends_on: { postgres: { condition: service_healthy }, nats: { condition: service_healthy } }
+    networks: [egress-mail]
+    ports: ["127.0.0.1:${LEPALIER_PORT_MAILPIT:-8025}:8025", "127.0.0.1:${LEPALIER_PORT_SMTP:-1025}:1025"]
+
+  # Conteneur à usage unique, avant identity : mot de passe de svc_identity aligné sur mdp_base, puis migrations
+  # avec le rôle propriétaire ; identity ne reçoit jamais l'URL de ce rôle.
+  identity-migrations:
+    image: ghcr.io/you2mars/identity:dev
+    pull_policy: never
+    command: ["python", "-m", "app.preparer_base"]
+    environment:
+      APP_ENV: dev
+      APP_MIGRATION_DATABASE_URL: "postgresql+psycopg://admin:admin@postgres:5432/identity"
+    secrets: [{ source: mdp_base_identity, target: mdp_base }]
+    networks: [backend]
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+  identity:
+    image: ghcr.io/you2mars/identity:dev
+    pull_policy: never
+    environment:
+      APP_ENV: dev
+      APP_DATABASE_URL: "postgresql+psycopg://svc_identity@postgres:5432/identity"
+      APP_NATS_URL: "nats://nats:4222"
+      APP_SMTP_HOTE: mailpit
+      APP_SMTP_PORT: "1025"
+      # adresse de la VM (lue dans le certificat de make dev-certs par make dev-up) : liens des e-mails
+      APP_URL_PUBLIQUE: "${LEPALIER_URL_PUBLIQUE:?Adresse de la VM inconnue : lancez make dev-certs, puis make dev-up.}"
+      APP_ORIGINES_AUTORISEES: '["${LEPALIER_URL_PUBLIQUE}"]'
+    secrets:
+      - cle_hmac_identite
+      - cle_chiffrement_identity
+      - cle_pseudonymisation_identity
+      - { source: mdp_base_identity, target: mdp_base }
+    networks: [backend, egress-mail]
+    depends_on:
+      identity-migrations: { condition: service_completed_successfully }
+      nats: { condition: service_healthy }
+      mailpit: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/internal/healthz | grep -q '\"worker\":\"ok\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
 volumes:
   pgdata: {}
   natsdata: {}

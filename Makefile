@@ -1,8 +1,10 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 SERVICES := identity referentiel facturation charges-eau documents envois veille reporting
-COMPOSE_DEV := docker compose -f compose.dev.yml
 DEV_CERTS ?= deploy/nginx/certs
+# adresse de la VM de dev : première adresse IP du certificat de make dev-certs (liens des e-mails, APP_URL_PUBLIQUE)
+ADRESSE_VM = $(shell [ -f $(DEV_CERTS)/dev.crt ] && openssl x509 -in $(DEV_CERTS)/dev.crt -noout -ext subjectAltName | grep -oE 'IP Address:[0-9.]+' | head -1 | cut -d: -f2)
+COMPOSE_DEV = LEPALIER_URL_PUBLIQUE="$(if $(ADRESSE_VM),https://$(ADRESSE_VM))" docker compose -f compose.dev.yml
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
 .PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images recette tick ci
 
@@ -14,8 +16,9 @@ doctor: ## Vérifie l'outillage local (docker, uv, node, gh, claude, jq) et inst
 	@python3 -c "import jsonschema, yaml" 2>/dev/null && echo "ok   jsonschema + pyyaml" || echo "MANQUE python3-jsonschema python3-yaml (sudo apt install -y python3-jsonschema python3-yaml)"
 	@docker compose version
 
-dev-up: ## Démarre la plateforme de développement
-	$(COMPOSE_DEV) up -d --build
+dev-up: images ## Démarre la plateforme de développement (images locales) et attend qu'elle soit en bonne santé
+	@[ -n "$(ADRESSE_VM)" ] || { echo "Certificat de la VM absent ($(DEV_CERTS)/dev.crt) : lancez d'abord make dev-certs."; exit 1; }
+	$(COMPOSE_DEV) up -d --wait --wait-timeout 240
 dev-down: ## Arrête la plateforme (volumes conservés)
 	$(COMPOSE_DEV) down
 dev-certs: ## Certificat HTTPS auto-signé de la VM de dev : make dev-certs [IP=192.168.1.20] [FORCE=1]
@@ -82,7 +85,8 @@ test-plateforme: images ## Essai réel des images, de Compose et de nginx (Docke
 	LEPALIER_PLATEFORME=1 uv run --project libs/commun pytest -p no:cacheprovider scripts/tests/test_plateforme.py
 
 test-gabarit: ## Lint du gabarit, puis typage et tests d'un service généré dans un dossier temporaire
-	@set -e; dossier="$$(mktemp -d)/veille"; \
+	@# dossier temporaire supprimé à la fin, réussite ou échec (sinon environ 200 Mo restent dans /tmp à chaque essai)
+	@set -e; racine="$$(mktemp -d)"; trap 'rm -rf "$$racine"' EXIT; dossier="$$racine/veille"; \
 	DESTINATION="$$dossier" bash scripts/new-service.sh veille >/dev/null; \
 	echo "Service d'essai généré dans $$dossier"; \
 	(cd "$$dossier" && uv sync -q --all-extras); \

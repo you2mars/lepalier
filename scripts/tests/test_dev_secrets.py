@@ -71,7 +71,17 @@ def dossier(tmp_path: Path) -> Path:
 
 
 APPELS = "# commentaire\n\nfacturation documents\nenvois documents\n"
-ATTENDUS = {
+SERVICES = [
+    "identity",
+    "referentiel",
+    "facturation",
+    "charges-eau",
+    "documents",
+    "envois",
+    "veille",
+    "reporting",
+]
+ATTENDUS = {f"mdp_base_{service}" for service in SERVICES} | {
     "cle_hmac_identite",
     "cle_chiffrement_identity",
     "cle_pseudonymisation_identity",
@@ -220,3 +230,13 @@ def test_dev_secrets__echec_de_docker_run__message_clair_et_code_d_erreur(
     assert "make dev-secrets FORCE=1" in r.stderr
     for f in dossier.iterdir():
         assert f.stat().st_mode & 0o077 == 0, f.name
+
+
+def test_dev_secrets__mot_de_passe_de_base_par_service_distinct_et_jamais_affiche(dossier: Path) -> None:
+    """mdp_base_<service> : monté sous le nom mdp_base dans le service et dans <service>-migrations."""
+    r = _generer(dossier, APPELS)
+    valeurs = [_lire_en_tant_que(10001, dossier / f"mdp_base_{service}") for service in SERVICES]
+    assert all(v is not None and len(v.strip()) == 64 and int(v, 16) >= 0 for v in valeurs)
+    assert len({v.strip() for v in valeurs if v}) == len(SERVICES)
+    for valeur in valeurs:
+        assert valeur is not None and valeur.strip() not in r.stdout + r.stderr
