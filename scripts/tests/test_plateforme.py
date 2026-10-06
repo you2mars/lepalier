@@ -29,6 +29,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 IMAGE_IDENTITY = "ghcr.io/you2mars/identity:dev"
+# navigateurs et bibliothèques système de Playwright, même version que @playwright/test (front/package.json)
+IMAGE_PLAYWRIGHT = (
+    "mcr.microsoft.com/playwright:v1.63.0-noble"
+    "@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27"
+)
 RACINE = Path(__file__).resolve().parents[2]
 
 
@@ -127,7 +132,6 @@ def test_image__commande_tick_presente() -> None:
 # --- bloc B : identity dans Compose ----------------------------------------------------------------------
 
 PROJET = "lepalier-essai"
-URL_PUBLIQUE = "https://192.0.2.10"
 ESSAI = RACINE / "scripts" / "tests" / "plateforme" / "compose.essai.yml"
 
 
@@ -143,20 +147,23 @@ class Plateforme:
     secrets: Path
     certificat: Path
     fichier_env: Path
+    # ligne écrite par make dev-certs, avant que l'essai n'y mette l'adresse qu'il sert vraiment
+    ligne_dev_certs: str = ""
 
     @property
     def https(self) -> str:
         return f"https://127.0.0.1:{self.env['LEPALIER_PORT_HTTPS']}"
 
-    def compose(self, *arguments: str, verifier: bool = True) -> subprocess.CompletedProcess[str]:
+    def compose(
+        self, *arguments: str, verifier: bool = True, faux_front: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        """docker compose sur le projet d'essai ; faux_front=False : le vrai front, sans fichier d'essai."""
+        fichiers = ["-f", str(RACINE / "compose.dev.yml"), *(["-f", str(ESSAI)] if faux_front else [])]
         r = subprocess.run(
             [
                 "docker",
                 "compose",
-                "-f",
-                str(RACINE / "compose.dev.yml"),
-                "-f",
-                str(ESSAI),
+                *fichiers,
                 # .env écrit par make dev-certs, comme sur la VM ; jamais le .env du dépôt
                 "--env-file",
                 str(self.fichier_env),
@@ -213,7 +220,16 @@ def plateforme(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Plateforme]
         "LEPALIER_PORT_HTTPS": str(_port_libre()),
     }
     subprocess.run(["bash", "scripts/dev-secrets.sh"], cwd=RACINE, env=env, check=True, capture_output=True)
-    essai = Plateforme(env=env, secrets=secrets, certificat=certificats / "dev.crt", fichier_env=fichier_env)
+    essai = Plateforme(
+        env=env,
+        secrets=secrets,
+        certificat=certificats / "dev.crt",
+        fichier_env=fichier_env,
+        ligne_dev_certs=fichier_env.read_text(),
+    )
+    # l'essai sert le site sur 127.0.0.1 et un port libre : l'adresse publique (liens des e-mails, origine
+    # autorisée des écritures) doit être celle-là, comme sur la VM l'adresse écrite par make dev-certs
+    fichier_env.write_text(f"LEPALIER_URL_PUBLIQUE={essai.https}\n")
     assert PROJET == "lepalier-essai"  # down -v ne vise jamais la plateforme de dev (lepalier-dev)
     try:
         _demarrer(essai)
@@ -242,7 +258,8 @@ def test_compose__commandes_sans_variable_dans_l_environnement(plateforme: Plate
     """R0-28 : l'adresse de la VM vient du .env écrit par make dev-certs ; docker compose ps, logs, exec et
     make tick fonctionnent sans que la variable soit fournie par make dev-up."""
     assert "LEPALIER_URL_PUBLIQUE" not in plateforme.env
-    assert plateforme.fichier_env.read_text() == f"LEPALIER_URL_PUBLIQUE={URL_PUBLIQUE}\n"
+    assert plateforme.ligne_dev_certs == "LEPALIER_URL_PUBLIQUE=https://192.0.2.10\n"
+    assert plateforme.fichier_env.read_text() == f"LEPALIER_URL_PUBLIQUE={plateforme.https}\n"
     assert "identity" in plateforme.compose("ps", "--services", "--status", "running").stdout.split()
     assert plateforme.compose("exec", "-T", "identity", "true").returncode == 0
     assert plateforme.compose("logs", "--tail", "1", "identity").returncode == 0
@@ -389,7 +406,7 @@ def test_compose__lien_d_invitation_recu_dans_mailpit_sur_l_adresse_de_la_vm(pla
         time.sleep(1)
     (resume,) = messages
     texte = httpx.get(f"{api}/message/{resume['ID']}").json()["Text"]
-    assert re.search(rf"{re.escape(URL_PUBLIQUE)}/activation#[A-Za-z0-9_-]{{43}}", texte)
+    assert re.search(rf"{re.escape(plateforme.https)}/activation#[A-Za-z0-9_-]{{43}}", texte)
 
 
 def test_compose__identity_en_bonne_sante_worker_present(plateforme: Plateforme) -> None:
@@ -534,6 +551,107 @@ def test_nginx__entetes_d_identite_vides_vers_le_front(plateforme: Plateforme) -
     assert recus["x-real-ip"] != "1.2.3.4"
 
 
+def test_nginx__x_nonce_du_client_toujours_ecrase(plateforme: Plateforme) -> None:
+    """Le nonce de la politique de sécurité vient toujours de nginx ($request_id), jamais du client."""
+    recus = _client(plateforme).get("/", headers={"X-Nonce": "nonce-forge"}).json()
+    assert recus["x-nonce"] != "nonce-forge"
+    assert re.fullmatch(r"[0-9a-f]{32}", recus["x-nonce"])
+
+
+# --- écoute interne 8081 : lectures du BFF (front côté serveur), jamais depuis l'hôte -------------------
+
+
+def _depuis_le_front(plateforme: Plateforme, methode: str, chemin: str, *entetes: str) -> tuple[int, str]:
+    """(statut, corps) d'une requête faite depuis le conteneur du front vers http://nginx:8081."""
+    options = [arg for entete in entetes for arg in ("-H", entete)]
+    # HEAD : -I (avec -X HEAD, curl attendrait un corps qui ne vient jamais)
+    verbe = ["-I"] if methode == "HEAD" else ["-X", methode]
+    r = plateforme.compose(
+        "exec",
+        "-T",
+        "front",
+        "curl",
+        "-s",
+        "-w",
+        "\n%{http_code}",
+        *verbe,
+        *options,
+        f"http://nginx:8081{chemin}",
+    )
+    corps, _, statut = r.stdout.rpartition("\n")
+    return int(statut), corps
+
+
+def _cookie(session: Session) -> str:
+    return f"Cookie: lp_session={session.client.cookies['lp_session']}"
+
+
+def test_ecoute_interne__lecture_avec_session__meme_identite_que_le_port_public(
+    plateforme: Plateforme, session: Session
+) -> None:
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/moi", _cookie(session))
+    assert statut == 200
+    assert json.loads(corps)["id"] == session.utilisateur_id
+    # HEAD n'est pas refusé par l'écoute : la réponse vient du service (JSON), pas du refus de nginx (HTML) ;
+    # FastAPI ne répond pas à HEAD sur une route GET, d'où son propre 405
+    _, entetes = _depuis_le_front(plateforme, "HEAD", "/api/identity/moi", _cookie(session))
+    assert "content-type: application/json" in entetes.lower()
+
+
+@pytest.mark.parametrize("methode", ["POST", "PUT", "PATCH", "DELETE"])
+def test_ecoute_interne__ecriture_refusee_405(plateforme: Plateforme, session: Session, methode: str) -> None:
+    """Refus de nginx lui-même (HTML), avant toute vérification d'identité ou appel au service."""
+    statut, corps = _depuis_le_front(
+        plateforme, methode, "/api/identity/utilisateurs/inviter", _cookie(session)
+    )
+    assert statut == 405
+    assert "nginx" in corps
+
+
+@pytest.mark.parametrize(
+    "chemin",
+    [
+        "/api/identity/auth/etat-session",
+        "/api/identity/auth/verify",
+        "/api/identity/auth/connexion",
+        "/internal/healthz",
+        "/api/identity/internal/healthz",
+        "/",
+    ],
+)
+def test_ecoute_interne__auth_internal_et_front_fermes_404(
+    plateforme: Plateforme, session: Session, chemin: str
+) -> None:
+    assert _depuis_le_front(plateforme, "GET", chemin, _cookie(session))[0] == 404
+
+
+def test_ecoute_interne__entetes_forges_sans_cookie__401(plateforme: Plateforme) -> None:
+    entetes = [f"{nom}: {valeur}" for nom, valeur in FORGES_SIGNES.items()]
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/moi", *entetes)
+    assert statut == 401
+    assert json.loads(corps)["code"] == "unauthenticated"
+
+
+def test_ecoute_interne__session_valide_et_entetes_forges__identite_reelle(
+    plateforme: Plateforme, session: Session
+) -> None:
+    entetes = [f"{nom}: {valeur}" for nom, valeur in {**FORGES_SIGNES, "X-Role": "operateur"}.items()]
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/moi", _cookie(session), *entetes)
+    assert (statut, json.loads(corps)["id"], json.loads(corps)["role"]) == (
+        200,
+        session.utilisateur_id,
+        "gerant",
+    )
+
+
+def test_ecoute_interne__injoignable_depuis_l_hote(plateforme: Plateforme) -> None:
+    publie = plateforme.compose("port", "nginx", "8081", verifier=False)
+    assert publie.returncode != 0 or publie.stdout.strip() in ("", ":0")
+    with socket.socket() as s:
+        s.settimeout(2)
+        assert s.connect_ex(("127.0.0.1", 8081)) != 0
+
+
 def test_nginx__cache_auth_request_10_secondes(plateforme: Plateforme, session: Session) -> None:
     """N7 : 5 requêtes en moins de 10 s → un seul /auth/verify ; après 11 s, un nouveau."""
     time.sleep(11)
@@ -621,6 +739,58 @@ def test_nginx__compte_suspendu_refuse_au_plus_10_secondes_apres(
         assert time.monotonic() - debut < 11, "toujours accepté plus de 10 s après la suspension"
         time.sleep(0.5)
     assert session.client.get("/api/identity/utilisateurs").status_code == 401
+
+
+def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
+    """Front réel à la place du faux : essais de bout en bout Playwright (accessibilité axe-core, politique de
+    sécurité sans violation, clavier, 360 px, zoom 200 %). Avant N13, qui vide le compteur de connexions."""
+    plateforme.python(CREER_COMPTE.format(email="e2e@essai.local", mdp=MOT_DE_PASSE))
+    plateforme.compose(
+        "up",
+        "-d",
+        "--no-build",
+        "--force-recreate",
+        "--wait",
+        "--wait-timeout",
+        "240",
+        "front",
+        faux_front=False,
+    )
+    # Playwright dans son image : dépôt en lecture seule, uid de l'utilisateur, réseau de l'hôte,
+    # résultats dans le /tmp du conteneur : rien n'est écrit dans le dépôt
+    variables = {
+        "LEPALIER_E2E_URL": plateforme.https,
+        "LEPALIER_E2E_EMAIL": "e2e@essai.local",
+        "LEPALIER_E2E_MOT_DE_PASSE": MOT_DE_PASSE,
+        # dossiers du conteneur Playwright, pas de l'hôte
+        "LEPALIER_E2E_SORTIE": "/tmp/resultats",  # noqa: S108
+        "HOME": "/tmp",  # noqa: S108
+    }
+    r = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "host",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            *[arg for nom, valeur in variables.items() for arg in ("-e", f"{nom}={valeur}")],
+            "-v",
+            f"{RACINE}:/srv/depot:ro",
+            "-w",
+            "/srv/depot/front",
+            IMAGE_PLAYWRIGHT,
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout[-6000:] + r.stderr[-2000:]
 
 
 def test_nginx__limite_de_debit_sur_auth__429_json(plateforme: Plateforme) -> None:

@@ -19,3 +19,6 @@ services:
                 self.wfile.write(corps)
         HTTPServer(("0.0.0.0", 3000), Echo).serve_forever()
     networks: [edge]
+    # l'image app-base n'a pas wget (vérification du vrai front) : curl
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3000/"]

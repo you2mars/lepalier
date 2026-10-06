@@ -99,9 +99,10 @@ tick: ## Planificateur quotidien de tous les services démarrés (recette) : mak
 	@# seuls les services démarrés sont concernés ; une erreur d'un service démarré arrête la commande
 	@for s in $(SERVICES); do if $(COMPOSE_DEV) ps --services --status running | grep -qx "$$s"; then $(COMPOSE_DEV) exec -T $$s python -m app.scheduler tick $(if $(JOUR),--jour $(JOUR)) || exit 1; fi; done
 
-images: ## Construit en local app-base puis l'image de chaque service présent (ghcr.io/you2mars/<service>:dev)
+images: ## Construit en local app-base, l'image de chaque service présent et celle du front (ghcr.io/you2mars/<nom>:dev)
 	docker build -t ghcr.io/you2mars/app-base:latest -f deploy/docker/app-base.Dockerfile .
 	@for s in $(SERVICES); do if [ -d services/$$s ]; then docker build -t ghcr.io/you2mars/$$s:dev -f services/$$s/Dockerfile . || exit 1; fi; done
+	@if [ -f front/package.json ]; then docker build -t ghcr.io/you2mars/front:dev -f front/Dockerfile .; fi
 
 test-plateforme: images ## Essai réel des images, de Compose et de nginx (Docker requis ; plusieurs minutes)
 	LEPALIER_PLATEFORME=1 uv run --project libs/commun pytest -p no:cacheprovider scripts/tests/test_plateforme.py

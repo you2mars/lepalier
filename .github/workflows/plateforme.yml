@@ -10,6 +10,9 @@ on:
       - ".dockerignore"
       - "Makefile"
       - "scripts/tests/test_plateforme.py"
+      - "scripts/tests/plateforme/**"
+      - "front/**"
+      - "contracts/libelles/**"
       - ".github/workflows/plateforme.yml"
 permissions:
   contents: read
@@ -20,5 +23,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-      - name: Images locales puis essais (app-base, services, Compose, nginx)
+      - name: Images locales puis essais (app-base, services, front, Compose, nginx, Playwright)
         run: make test-plateforme

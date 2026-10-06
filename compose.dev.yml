@@ -88,6 +88,19 @@ services:
       timeout: 3s
       retries: 30
 
+  # Front Next.js 15 en BFF : réseau edge seul ; lectures côté serveur par l'écoute interne de nginx (8081)
+  front:
+    image: ghcr.io/you2mars/front:dev
+    pull_policy: never
+    environment:
+      LEPALIER_BFF: "http://nginx:8081"
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/connexion"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   # Frontal (ADR 0003) : TLS, auth_request vers identity, limites de débit, en-têtes d'identité réécrits
   nginx:
     image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
@@ -99,6 +112,9 @@ services:
       - ./deploy/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/nginx/proxy_common.conf:/etc/nginx/proxy_common.conf:ro
       - ./deploy/nginx/entetes_identite_vides.conf:/etc/nginx/entetes_identite_vides.conf:ro
+      - ./deploy/nginx/reponses_json.conf:/etc/nginx/reponses_json.conf:ro
+      - ./deploy/nginx/verification_identite.conf:/etc/nginx/verification_identite.conf:ro
+      - ./deploy/nginx/api_services.conf:/etc/nginx/api_services.conf:ro
       - ./deploy/nginx/templates:/etc/nginx/templates:ro
       - ./deploy/nginx/maintenance.html:/usr/share/nginx/maintenance/maintenance.html:ro
       - "${LEPALIER_CERTS:-./deploy/nginx/certs}:/etc/nginx/certs:ro"
