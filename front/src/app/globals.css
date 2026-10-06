@@ -1,0 +1,70 @@
+/* Design system minimal (UX_CHARTE § 9) : system-ui, corps 16 px, interligne 1,5, titres 24/20/18 px,
+   contraste AA, cibles de 44 px, focus visible, grille de 8 px, largeur de lecture ≤ 72 caractères. */
+:root {
+  --texte: #1a1918;
+  --texte-doux: #4a4744;
+  --fond: #ffffff;
+  --bordure: #6b6763;
+  --action: #0b4f8a;
+  --action-texte: #ffffff;
+  --fait: #1d6b35;
+  --attention: #8a5300;
+  --erreur: #a8201a;
+  --focus: #0b4f8a;
+  --espace: 8px;
+}
+* { box-sizing: border-box; }
+html { font-size: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--texte);
+  background: var(--fond);
+}
+h1 { font-size: 1.5rem; line-height: 1.25; margin: calc(var(--espace) * 3) 0 calc(var(--espace) * 2); }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 1.125rem; }
+a { color: var(--action); text-underline-offset: 0.15em; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.entete-public { padding: calc(var(--espace) * 2); border-bottom: 1px solid var(--bordure); }
+.nom-application { margin: 0; font-weight: 700; font-size: 1.125rem; }
+.contenu-public { max-width: 28rem; margin: 0 auto; padding: 0 calc(var(--espace) * 2) calc(var(--espace) * 4); }
+
+.champ { margin-bottom: calc(var(--espace) * 3); }
+.champ label { display: block; font-weight: 600; margin-bottom: var(--espace); }
+.champ-saisie { display: flex; gap: var(--espace); align-items: stretch; }
+.champ input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--espace) calc(var(--espace) * 1.5);
+  font: inherit;
+  border: 1px solid var(--bordure);
+  border-radius: 4px;
+}
+.champ input[aria-invalid="true"] { border: 2px solid var(--erreur); }
+.champ-aide { margin: var(--espace) 0 0; color: var(--texte-doux); }
+.champ-erreur { margin: var(--espace) 0 0; color: var(--erreur); font-weight: 600; }
+
+.bouton {
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--espace) calc(var(--espace) * 2);
+  font: inherit;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.bouton-principal { width: 100%; background: var(--action); color: var(--action-texte); border: 2px solid var(--action); }
+.bouton-secondaire { background: var(--fond); color: var(--action); border: 2px solid var(--action); }
+.bouton-texte { background: none; color: var(--action); border: 1px solid var(--bordure); }
+.bouton[disabled] { opacity: 0.7; cursor: progress; }
+
+.bandeau { border-left: 6px solid; padding: var(--espace) calc(var(--espace) * 2); margin: calc(var(--espace) * 2) 0; }
+.bandeau p { margin: 0; }
+.bandeau-fait { border-color: var(--fait); }
+.bandeau-attention { border-color: var(--attention); }
+.bandeau-erreur { border-color: var(--erreur); }
