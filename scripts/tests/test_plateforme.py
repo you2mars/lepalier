@@ -501,16 +501,20 @@ class Session:
 @pytest.fixture(scope="module")
 def session(plateforme: Plateforme) -> Iterator[Session]:
     """Gérant connecté à travers nginx (cookie lp_session)."""
-    sortie = plateforme.python(
-        CREER_COMPTE.format(email="essai@essai.local", mdp=MOT_DE_PASSE)
-    ).stdout.split()
-    uid, secret = sortie[0], bytes.fromhex(sortie[1])
+    connectee = _connecter(plateforme, "essai@essai.local")
+    yield connectee
+    connectee.client.close()
+
+
+def _connecter(plateforme: Plateforme, email: str) -> Session:
+    """Nouveau gérant, connecté à travers nginx (adresse, mot de passe puis code)."""
+    uid, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
     client = _client(plateforme)
-    connexion = {"email": "essai@essai.local", "mot_de_passe": MOT_DE_PASSE}
+    connexion = {"email": email, "mot_de_passe": MOT_DE_PASSE}
     assert client.post("/api/identity/auth/connexion", json=connexion).status_code == 200
-    assert client.post("/api/identity/auth/code", json={"code": _code_totp(secret)}).status_code == 200
-    yield Session(client, uid)
-    client.close()
+    code = {"code": _code_totp(bytes.fromhex(secret))}
+    assert client.post("/api/identity/auth/code", json=code).status_code == 200
+    return Session(client, uid)
 
 
 FORGES = {"X-User-Id": "0192f3a4-5b6c-7d8e-9f01-234567890c99", "X-Role": "gerant", "X-Auth-Exp": "9999999999"}
@@ -636,9 +640,11 @@ def test_ecoute_interne__ecriture_refusee_405(plateforme: Plateforme, session: S
 @pytest.mark.parametrize(
     "chemin",
     [
-        "/api/identity/auth/etat-session",
         "/api/identity/auth/verify",
         "/api/identity/auth/connexion",
+        "/api/identity/auth/code",
+        "/api/identity/auth/etat-session/",
+        "/api/identity/auth/etat-sessionx",
         "/internal/healthz",
         "/api/identity/internal/healthz",
         "/",
@@ -648,6 +654,18 @@ def test_ecoute_interne__auth_internal_et_front_fermes_404(
     plateforme: Plateforme, session: Session, chemin: str
 ) -> None:
     assert _depuis_le_front(plateforme, "GET", chemin, _cookie(session))[0] == 404
+
+
+def test_ecoute_interne__etat_session__seule_exception_dans_auth_en_lecture(
+    plateforme: Plateforme, session: Session
+) -> None:
+    """Exception bornée (ADR 0006) : après un 401, le BFF demande à identity si la session a été coupée par
+    une suspension ; lecture seule, cookie du navigateur relayé ; écritures toujours refusées par nginx."""
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/auth/etat-session", _cookie(session))
+    assert (statut, json.loads(corps)["code"]) == (200, "session_expiree")
+    statut, corps = _depuis_le_front(plateforme, "POST", "/api/identity/auth/etat-session", _cookie(session))
+    assert statut == 405
+    assert "nginx" in corps
 
 
 def test_ecoute_interne__entetes_forges_sans_cookie__401(plateforme: Plateforme) -> None:
@@ -779,6 +797,12 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         uid, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
         secours = plateforme.python(AJOUTER_CODES_SECOURS.format(uid=uid)).stdout.split()
         comptes_code[projet] = {"email": email, "secret": secret, "secours": secours}
+    # un gérant par projet pour l'accueil (connexion complète, puis déconnexion)
+    comptes_accueil = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-accueil-{projet}@essai.local"
+        _, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
+        comptes_accueil[projet] = {"email": email, "secret": secret, "secours": []}
     # une invitation par projet : l'activation la consomme
     invitations = {
         projet: plateforme.python(INVITER.format(email=f"e2e-activation-{projet}@essai.local")).stdout.strip()
@@ -803,6 +827,7 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_MOT_DE_PASSE": MOT_DE_PASSE,
         "LEPALIER_E2E_COMPTES_CODE": json.dumps(comptes_code),
         "LEPALIER_E2E_INVITATIONS": json.dumps(invitations),
+        "LEPALIER_E2E_COMPTES_ACCUEIL": json.dumps(comptes_accueil),
         # dossiers du conteneur Playwright, pas de l'hôte
         "LEPALIER_E2E_SORTIE": "/tmp/resultats",  # noqa: S108
         "HOME": "/tmp",  # noqa: S108
@@ -832,6 +857,31 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         check=False,
     )
     assert r.returncode == 0, r.stdout[-6000:] + r.stderr[-2000:]
+
+
+def test_identity_arrete__accueil_indisponible_sans_deconnexion_puis_retour(plateforme: Plateforme) -> None:
+    """R0-36 (UX-30) : identity arrêté, une session valide n'est jamais traitée comme expirée ; nginx répond
+    par une erreur 5xx (jamais 401) ; l'accueil dit « Information momentanément indisponible »."""
+    plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "front", faux_front=False)
+    # session propre à l'essai : celle du module a pu être coupée par un essai précédent (suspension)
+    session = _connecter(plateforme, "indisponible@essai.local")
+    jeton = session.client.cookies["lp_session"]
+    plateforme.compose("stop", "identity")
+    try:
+        # vérification d'identité de nginx (auth_request) en échec : erreur du serveur, jamais 401
+        api = session.client.get("/api/identity/moi")
+        assert api.status_code >= 500, api.status_code
+        accueil = session.client.get("/", follow_redirects=False)
+        assert accueil.status_code == 200, (accueil.status_code, accueil.headers.get("location"))
+        assert "Information momentanément indisponible" in accueil.text
+        assert "set-cookie" not in accueil.headers
+        assert session.client.cookies["lp_session"] == jeton
+    finally:
+        plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "identity")
+    accueil = session.client.get("/", follow_redirects=False)
+    assert accueil.status_code == 200
+    assert "<h1>À faire</h1>" in accueil.text
+    session.client.close()
 
 
 def test_nginx__limite_de_debit_sur_auth__429_json(plateforme: Plateforme) -> None:

@@ -57,7 +57,8 @@ server {
 }
 
 # Écoute interne du BFF (front côté serveur) : lectures seulement (GET, HEAD) de /api/*, avec la même vérification
-# d'identité et le même vidage des en-têtes ; jamais /api/identity/auth/* ni /internal/* ; port jamais publié.
+# d'identité et le même vidage des en-têtes ; jamais /api/identity/auth/* (seule exception : GET etat-session,
+# ci-dessous) ni /internal/* ; port jamais publié.
 server {
   listen 8081;
   # au niveau du serveur, avant le choix de la location : un if dans location /api/ ne s'appliquerait pas aux
@@ -66,6 +67,15 @@ server {
   include /etc/nginx/reponses_json.conf;
   include /etc/nginx/verification_identite.conf;
   location /api/identity/auth/ { try_files /introuvable @introuvable; }
+  # Seule exception dans /api/identity/auth/ (ADR 0006) : après un 401, le BFF demande à identity si la session a
+  # été coupée par une suspension. Route en lecture seule, qui ne pose aucun cookie et ne révèle au détenteur du
+  # cookie que « suspendu ou non ». Adresse exacte ; les écritures restent refusées (405) par la règle du serveur.
+  location = /api/identity/auth/etat-session {
+    include /etc/nginx/proxy_common.conf;
+    include /etc/nginx/entetes_identite_vides.conf;
+    set $identity identity:8000;
+    proxy_pass http://$identity/auth/etat-session;
+  }
   location /internal/ { try_files /introuvable @introuvable; }
   location ~ ^/api/[^/]+/internal/ { try_files /introuvable @introuvable; }
   location /api/ {
