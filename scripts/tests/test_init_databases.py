@@ -36,11 +36,33 @@ def url_admin() -> Iterator[str]:
         yield pg.get_connection_url()
 
 
-def _moteur(url_admin: str, base: str, role: str | None = None) -> Engine:
+MDP_ESSAI = "mdp-pose-par-le-conteneur-de-migrations"
+
+
+def _moteur(url_admin: str, base: str, role: str | None = None, mot_de_passe: str = MDP_ESSAI) -> Engine:
     url = make_url(url_admin).set(database=base)
     if role is not None:
-        url = url.set(username=role, password="changeme")
+        url = url.set(username=role, password=mot_de_passe)
     return create_engine(url)
+
+
+def _poser_mot_de_passe(url_admin: str, role: str) -> None:
+    """Ce que fait le conteneur <service>-migrations au démarrage (app.preparer_base)."""
+    with _moteur(url_admin, "postgres").connect().execution_options(isolation_level="AUTOCOMMIT") as cnx:
+        cnx.execute(text(f"ALTER ROLE {role} PASSWORD '{MDP_ESSAI}'"))
+
+
+@pytest.mark.parametrize("base", BASES)
+def test_init__role_applicatif_cree_sans_mot_de_passe(url_admin: str, base: str) -> None:
+    """Aucun mot de passe par défaut : connexion possible seulement une fois aligné sur mdp_base."""
+    with _moteur(url_admin, "postgres").connect() as cnx:
+        connexion, mot_de_passe = cnx.execute(
+            text("SELECT rolcanlogin, rolpassword FROM pg_authid WHERE rolname = :role"),
+            {"role": f"svc_{base}"},
+        ).one()
+    assert (connexion, mot_de_passe) == (True, None)
+    with pytest.raises(OperationalError):
+        _moteur(url_admin, base, f"svc_{base}", "changeme").connect()
 
 
 def test_init__chaque_base_appartient_au_role_d_administration(url_admin: str) -> None:
@@ -58,6 +80,7 @@ def test_init__chaque_base_appartient_au_role_d_administration(url_admin: str) -
 def test_init__role_applicatif_se_connecte_a_sa_base_sans_pouvoir_creer_de_table(
     url_admin: str, base: str
 ) -> None:
+    _poser_mot_de_passe(url_admin, f"svc_{base}")
     with _moteur(url_admin, base, f"svc_{base}").connect() as cnx:
         assert cnx.execute(text("SELECT current_user")).scalar_one() == f"svc_{base}"
         with pytest.raises(ProgrammingError, match="permission denied"):
@@ -65,5 +88,6 @@ def test_init__role_applicatif_se_connecte_a_sa_base_sans_pouvoir_creer_de_table
 
 
 def test_init__role_applicatif_sans_acces_a_la_base_d_un_autre_service(url_admin: str) -> None:
+    _poser_mot_de_passe(url_admin, "svc_identity")
     with pytest.raises(OperationalError, match="permission denied"):
         _moteur(url_admin, "referentiel", "svc_identity").connect()
