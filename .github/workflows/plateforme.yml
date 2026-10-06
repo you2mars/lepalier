@@ -1,0 +1,24 @@
+name: plateforme
+# Essai réel des images, de Compose et de nginx (make test-plateforme), seulement quand ils changent.
+on:
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "compose*.yml"
+      - "**/Dockerfile"
+      - "**/supervisord.conf"
+      - ".dockerignore"
+      - "Makefile"
+      - "scripts/tests/test_plateforme.py"
+      - ".github/workflows/plateforme.yml"
+permissions:
+  contents: read
+jobs:
+  plateforme:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Images locales puis essais (app-base, services, Compose, nginx)
+        run: make test-plateforme

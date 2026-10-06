@@ -4,7 +4,7 @@ SERVICES := identity referentiel facturation charges-eau documents envois veille
 COMPOSE_DEV := docker compose -f compose.dev.yml
 DEV_CERTS ?= deploy/nginx/certs
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
-.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit recette tick ci
+.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images recette tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -70,9 +70,16 @@ recette: ## Charge le jeu de données de recette d'un lot : make recette LOT=N
 	@if [ -f scripts/recette/lot-$(LOT).py ]; then uv run python scripts/recette/lot-$(LOT).py; else echo "scripts/recette/lot-$(LOT).py à générer avec /recette $(LOT)"; fi
 	@echo "Checklist : docs/RECETTE/lot-$(LOT).md"
 
-tick: ## Déclenche le planificateur quotidien de tous les services (recette)
+tick: ## Planificateur quotidien de tous les services démarrés (recette) : make tick [JOUR=AAAA-MM-JJ]
 	@# seuls les services démarrés sont concernés ; une erreur d'un service démarré arrête la commande
-	@for s in $(SERVICES); do if $(COMPOSE_DEV) ps --services --status running | grep -qx "$$s"; then $(COMPOSE_DEV) exec -T $$s uv run python -m app.scheduler tick || exit 1; fi; done
+	@for s in $(SERVICES); do if $(COMPOSE_DEV) ps --services --status running | grep -qx "$$s"; then $(COMPOSE_DEV) exec -T $$s python -m app.scheduler tick $(if $(JOUR),--jour $(JOUR)) || exit 1; fi; done
+
+images: ## Construit en local app-base puis l'image de chaque service présent (ghcr.io/you2mars/<service>:dev)
+	docker build -t ghcr.io/you2mars/app-base:latest -f deploy/docker/app-base.Dockerfile .
+	@for s in $(SERVICES); do if [ -d services/$$s ]; then docker build -t ghcr.io/you2mars/$$s:dev -f services/$$s/Dockerfile . || exit 1; fi; done
+
+test-plateforme: images ## Essai réel des images, de Compose et de nginx (Docker requis ; plusieurs minutes)
+	LEPALIER_PLATEFORME=1 uv run --project libs/commun pytest -p no:cacheprovider scripts/tests/test_plateforme.py
 
 test-gabarit: ## Lint du gabarit, puis typage et tests d'un service généré dans un dossier temporaire
 	@set -e; dossier="$$(mktemp -d)/veille"; \

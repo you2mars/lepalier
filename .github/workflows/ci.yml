@@ -76,9 +76,26 @@ jobs:
         run: echo "ok=$([ -f front/package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - if: steps.present.outputs.ok == 'true'
         run: cd front && npm ci && npm run lint && npx tsc --noEmit && npm test --if-present
-  images:
+  app-base:
     if: github.ref == 'refs/heads/main'
     needs: [services, front]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/app-base.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/app-base:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/app-base:latest
+  images:
+    if: github.ref == 'refs/heads/main'
+    # les images des services partent de app-base:latest, publiée juste avant
+    needs: [app-base]
     runs-on: ubuntu-latest
     strategy:
       matrix:
