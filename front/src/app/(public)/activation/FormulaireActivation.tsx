@@ -1,7 +1,8 @@
 "use client";
-// Activer mon compte (maquettes v3, écran 3 ; ADR 0006, R0-05) : le jeton est lu après « # », retiré de l'adresse
-// affichée, puis envoyé en POST à activation/debut (au chargement) et activation/fin (à la dernière étape). Les trois
-// étapes restent sur la même adresse et dans la mémoire de la page ; rien n'est stocké ailleurs.
+// Activer mon compte (maquettes v3, écran 3 ; ADR 0006, R0-05) : le jeton est lu après « # » et envoyé en POST à
+// activation/debut (au chargement) et activation/fin (à la dernière étape). Il reste dans l'adresse jusqu'à la
+// réussite, pour qu'un rechargement (au retour de l'App Store, par exemple) reprenne l'activation ; il n'en est
+// retiré qu'à ce moment-là. Les trois étapes restent dans la mémoire de la page ; rien n'est stocké ailleurs.
 import QRCode from "qrcode";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
@@ -20,14 +21,16 @@ type Debut = { uri_otpauth: string; nom_affiche: string; email: string };
 export type Activee = { etape: string; codes_secours: string[]; nom_affiche: string; role: string };
 type Etape = 0 | 1 | 2;
 type Message = { etat: EtatBandeau; texte: string };
-type Phase = "chargement" | "invalide" | "panne" | "saisie";
+type Phase = "chargement" | "sansJeton" | "invalide" | "panne" | "saisie";
 type Cible = "titre" | "nom" | "motDePasse" | "code";
 
 function lireJeton(): string | null {
-  const jeton = window.location.hash.slice(1);
-  // le jeton ne reste ni dans l'adresse affichée ni dans l'historique
+  return window.location.hash.slice(1) || null;
+}
+
+// une fois le compte activé, le jeton ne sert plus : retiré de l'adresse affichée et de l'historique
+function retirerJeton(): void {
   window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
-  return jeton || null;
 }
 
 export function FormulaireActivation({ surActivation }: { surActivation: (activee: Activee) => void }) {
@@ -56,7 +59,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     if (jeton.current === undefined) jeton.current = lireJeton();
     const lien = jeton.current;
     if (!lien) {
-      setPhase("invalide");
+      setPhase("sansJeton");
       return;
     }
     let actif = true;
@@ -147,6 +150,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     });
     setEnvoiEnCours(false);
     if (resultat.ok && resultat.donnees) {
+      retirerJeton();
       surActivation(resultat.donnees);
       return;
     }
@@ -178,6 +182,14 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     }
   }
 
+  if (phase === "sansJeton") {
+    return (
+      <>
+        <h1>{T.titre}</h1>
+        <p>{T.sansLien}</p>
+      </>
+    );
+  }
   if (phase === "invalide") {
     return (
       <>

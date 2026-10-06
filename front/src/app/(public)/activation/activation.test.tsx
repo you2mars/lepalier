@@ -59,12 +59,11 @@ beforeEach(() => window.history.replaceState(null, "", `/activation#${JETON}`));
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Activer mon compte : chargement du lien (ADR 0006, maquettes v3 écran 3)", () => {
-  it("jeton lu après #, retiré de l'adresse affichée, envoyé en POST à activation/debut", async () => {
+  it("jeton lu après #, envoyé en POST à activation/debut ; il reste dans l'adresse pendant l'activation", async () => {
     const appel = api();
     render(<FormulaireActivation surActivation={vi.fn()} />);
     await etape(0);
-    expect(window.location.hash).toBe("");
-    expect(window.location.pathname).toBe("/activation");
+    expect(window.location.hash).toBe(`#${JETON}`);
     expect(appel.mock.calls[0]![0]).toBe("/api/identity/auth/activation/debut");
     expect(JSON.parse((appel.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({
       jeton: JETON,
@@ -88,12 +87,15 @@ describe("Activer mon compte : chargement du lien (ADR 0006, maquettes v3 écran
     expect(screen.queryByText(TEXTES.activation.avantDeCommencer)).toBeNull();
   });
 
-  it("adresse sans jeton : message du lien invalide, aucun appel", async () => {
+  it("adresse sans jeton : invitation à ouvrir le lien de l'e-mail, aucun appel, pas de « lien invalide »", async () => {
     window.history.replaceState(null, "", "/activation");
     const appel = vi.fn();
     vi.stubGlobal("fetch", appel);
     render(<FormulaireActivation surActivation={vi.fn()} />);
-    expect(await screen.findByText(libelle("invitation.lien_invalide"))).toBeInTheDocument();
+    expect(await screen.findByText(TEXTES.activation.sansLien)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TEXTES.activation.titre);
+    expect(screen.queryByText(libelle("invitation.lien_invalide"))).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
     expect(appel).not.toHaveBeenCalled();
   });
 
@@ -266,6 +268,9 @@ describe("Activer mon compte : envoi final (activation/fin)", () => {
     const surActivation = await jusquALEtape3();
     await activer();
     await waitFor(() => expect(surActivation).toHaveBeenCalledWith(ACTIVE));
+    // le jeton ne quitte l'adresse qu'une fois le compte activé
+    expect(window.location.hash).toBe("");
+    expect(window.location.pathname).toBe("/activation");
     const [chemin, options] = appel.mock.calls[1] as unknown as [string, RequestInit];
     expect(chemin).toBe("/api/identity/auth/activation/fin");
     expect(JSON.parse(options.body as string)).toEqual({
@@ -286,6 +291,7 @@ describe("Activer mon compte : envoi final (activation/fin)", () => {
     expect(code).toHaveValue("");
     expect(code).toHaveFocus();
     expect(surActivation).not.toHaveBeenCalled();
+    expect(window.location.hash).toBe(`#${JETON}`);
   });
 
   it("nom refusé (422) : retour à l'étape 1, message sous le champ, focus", async () => {

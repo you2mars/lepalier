@@ -36,7 +36,7 @@ export const TEXTES = {
   activation: {
     titre: "Activer mon compte",
     avantDeCommencer:
-      "Avant de commencer : installez sur votre téléphone l'application « Google Authenticator » (gratuite, dans l'App Store ou le Play Store). Si vous quittez cette page pour l'installer, rouvrez simplement le lien de l'e-mail : vous reprendrez ici.",
+      "Avant de commencer : installez sur votre téléphone l'application « Google Authenticator » (gratuite, dans l'App Store ou le Play Store). Si vous quittez cette page pour l'installer, revenez-y ensuite : vous recommencerez au début, votre nom sera déjà rempli.",
     autresApplications: "Autres applications possibles",
     autresApplicationsListe: ["Microsoft Authenticator", "FreeOTP"],
     adresseDeConnexion: "Votre adresse de connexion :",
@@ -64,6 +64,8 @@ export const TEXTES = {
     copierCle: "Copier la clé",
     cleCopiee: "Clé copiée.",
     libelleCode: "Code à 6 chiffres affiché par l'application",
+    // accès à /activation sans le lien de l'e-mail (décision du 6 octobre 2026) ; « lien invalide » reste au 410
+    sansLien: "Pour activer votre compte, ouvrez le lien reçu dans l'e-mail d'invitation.",
   },
   // repris de libs/commun (erreurs.py, identite.py) pour les cas sans réponse de l'API ; un test vérifie l'égalité
   commun: {

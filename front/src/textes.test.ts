@@ -52,7 +52,7 @@ describe("textes du front", () => {
     expect(TEXTES.activation).toEqual({
       titre: "Activer mon compte",
       avantDeCommencer:
-        "Avant de commencer : installez sur votre téléphone l'application « Google Authenticator » (gratuite, dans l'App Store ou le Play Store). Si vous quittez cette page pour l'installer, rouvrez simplement le lien de l'e-mail : vous reprendrez ici.",
+        "Avant de commencer : installez sur votre téléphone l'application « Google Authenticator » (gratuite, dans l'App Store ou le Play Store). Si vous quittez cette page pour l'installer, revenez-y ensuite : vous recommencerez au début, votre nom sera déjà rempli.",
       autresApplications: "Autres applications possibles",
       autresApplicationsListe: ["Microsoft Authenticator", "FreeOTP"],
       adresseDeConnexion: "Votre adresse de connexion :",
@@ -80,6 +80,7 @@ describe("textes du front", () => {
       copierCle: "Copier la clé",
       cleCopiee: "Clé copiée.",
       libelleCode: "Code à 6 chiffres affiché par l'application",
+      sansLien: "Pour activer votre compte, ouvrez le lien reçu dans l'e-mail d'invitation.",
     });
   });
 

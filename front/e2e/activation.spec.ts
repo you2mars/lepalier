@@ -30,16 +30,23 @@ async function sansDefilementHorizontal(page: Page): Promise<void> {
 }
 
 test.describe("Activer mon compte", () => {
-  test("lien inconnu : seulement le titre et le message, jeton retiré de l'adresse", async ({ page }) => {
+  test("lien inconnu : seulement le titre et le message du lien invalide", async ({ page }) => {
     await ouvrirLeLien(page, "x".repeat(43));
     await expect(page.getByText(libelle("invitation.lien_invalide"))).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(T.titre);
     await expect(page.getByRole("textbox")).toHaveCount(0);
-    expect(new URL(page.url()).hash).toBe("");
     await verifierAccessibilite(page);
   });
 
-  test("trois étapes accessibles, cibles de 44 px, aucun défilement horizontal ; même clé à la réouverture du lien", async ({
+  test("accès sans le lien de l'e-mail : invitation à l'ouvrir, jamais « lien invalide »", async ({ page }) => {
+    await page.goto("/activation");
+    await expect(page.getByText(T.sansLien)).toBeVisible();
+    await expect(page.getByText(libelle("invitation.lien_invalide"))).toHaveCount(0);
+    await expect(page.getByRole("textbox")).toHaveCount(0);
+    await verifierAccessibilite(page);
+  });
+
+  test("trois étapes accessibles, cibles de 44 px, aucun défilement horizontal ; rechargement à l'étape 3 : même clé", async ({
     page,
     isMobile,
   }, infos) => {
@@ -48,7 +55,7 @@ test.describe("Activer mon compte", () => {
     await ouvrirLeLien(page, jeton);
     await expect(page).toHaveTitle("Activer mon compte — LePalier");
     await expect(titreEtape(page, 0)).toBeVisible();
-    expect(new URL(page.url()).hash).toBe("");
+    expect(new URL(page.url()).hash).toBe(`#${jeton}`);
     await expect(page.getByText(T.avantDeCommencer)).toBeVisible();
     await expect(page.getByLabel(T.nomAffiche)).toHaveValue("M. Essai");
     await verifierAccessibilite(page);
@@ -72,8 +79,10 @@ test.describe("Activer mon compte", () => {
     const premiereCle = await cle(page);
     expect(premiereCle).toMatch(/^[A-Z2-7]{4}( [A-Z2-7]{1,4})+$/);
 
-    // B1 : la personne quitte la page pour installer l'application, puis rouvre le lien de l'e-mail
-    await ouvrirLeLien(page, jeton);
+    // B1 : au retour de l'App Store, le téléphone recharge la page ; l'activation reprend sans erreur
+    await page.reload();
+    await expect(titreEtape(page, 0)).toBeVisible();
+    await expect(page.getByText(libelle("invitation.lien_invalide"))).toHaveCount(0);
     await continuer(page);
     await page.getByLabel(T.motDePasse, { exact: true }).fill(MOT_DE_PASSE);
     await continuer(page);
@@ -108,6 +117,8 @@ test.describe("Activer mon compte", () => {
     await code.fill(codeTotp(secret));
     await page.getByRole("button", { name: T.bouton }).click();
     await expect(page.getByRole("heading", { level: 1, name: T.titre })).toHaveCount(0);
+    // le lien ne quitte la barre d'adresse qu'une fois le compte activé
+    expect(new URL(page.url()).hash).toBe("");
     expect((await page.context().cookies()).map((c) => c.name)).toContain("lp_session");
   });
 });
