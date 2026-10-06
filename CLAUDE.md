@@ -55,7 +55,7 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 ## Processus d'un lot (voir docs/PLAN_DE_DEV.md)
 1. `/lot N` : lire le lot, proposer l'ordre des tâches, créer la branche.
 2. Pour chaque fonctionnalité : contrat → migration → moteur + tests → consommateurs/jobs → routes → écran (après revue UX de la maquette) → test de chorégraphie.
-3. `/recette N` : compléter docs/RECETTE/lot-N.md (cas manuels, données de test) ; Youssef valide chaque ligne.
+3. `/recette N` : compléter docs/RECETTE/lot-N.md (cas manuels, données de test) ; Youssef valide chaque ligne. Les lignes de recette d'un écran sont écrites dès qu'il est terminé, diff montré à Youssef avant le commit.
 4. `/revue-ux <écran>` sur chaque écran livré ; corriger avant de passer au suivant.
 5. `/dod N` : vérifier la Definition of Done, mettre à jour docs et CHANGELOG, taguer.
 
