@@ -744,6 +744,9 @@ def test_nginx__compte_suspendu_refuse_au_plus_10_secondes_apres(
 def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
     """Front réel à la place du faux : essais de bout en bout Playwright (accessibilité axe-core, politique de
     sécurité sans violation, clavier, 360 px, zoom 200 %). Avant N13, qui vide le compteur de connexions."""
+    assert (RACINE / "front" / "node_modules" / "@playwright" / "test").is_dir(), (
+        "Dépendances du front absentes : lancez « cd front && npm ci » avant make test-plateforme."
+    )
     plateforme.python(CREER_COMPTE.format(email="e2e@essai.local", mdp=MOT_DE_PASSE))
     plateforme.compose(
         "up",

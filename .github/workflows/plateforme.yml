@@ -23,5 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Dépendances du front (Playwright les lit dans le dépôt monté)
+        run: cd front && npm ci
       - name: Images locales puis essais (app-base, services, front, Compose, nginx, Playwright)
         run: make test-plateforme

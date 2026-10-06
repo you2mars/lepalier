@@ -104,8 +104,12 @@ images: ## Construit en local app-base, l'image de chaque service présent et ce
 	@for s in $(SERVICES); do if [ -d services/$$s ]; then docker build -t ghcr.io/you2mars/$$s:dev -f services/$$s/Dockerfile . || exit 1; fi; done
 	@if [ -f front/package.json ]; then docker build -t ghcr.io/you2mars/front:dev -f front/Dockerfile .; fi
 
-test-plateforme: images ## Essai réel des images, de Compose et de nginx (Docker requis ; plusieurs minutes)
+test-plateforme: images front/node_modules/.package-lock.json ## Essai réel des images, de Compose et de nginx (Docker requis ; plusieurs minutes)
 	LEPALIER_PLATEFORME=1 uv run --project libs/commun pytest -p no:cacheprovider scripts/tests/test_plateforme.py
+
+# dépendances du front pour Playwright : réinstallées si package-lock.json est plus récent que la dernière installation
+front/node_modules/.package-lock.json: front/package-lock.json
+	cd front && npm ci
 
 test-gabarit: ## Lint du gabarit, puis typage et tests d'un service généré dans un dossier temporaire
 	@# dossier temporaire supprimé à la fin, réussite ou échec (sinon environ 200 Mo restent dans /tmp à chaque essai)
