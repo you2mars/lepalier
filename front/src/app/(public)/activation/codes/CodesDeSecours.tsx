@@ -7,6 +7,9 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Bouton } from "@/components/ui/Bouton";
 import { CaseACocher } from "@/components/ui/CaseACocher";
+import { FeuilleImpression, HorsImpression } from "@/components/ui/Impression";
+import { ListeCodes } from "@/components/ui/ListeCodes";
+import { RappelPermanent } from "@/components/ui/RappelPermanent";
 import { dateEnToutesLettres } from "@/lib/format";
 import { TEXTES } from "@/textes";
 
@@ -50,19 +53,15 @@ export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffi
 
   return (
     <>
-      <div className="ecran-seul">
+      <HorsImpression>
         <h1 ref={titre} tabIndex={-1}>
           {T.titre}
         </h1>
         {T.consigne.map((phrase) => (
           <p key={phrase}>{phrase}</p>
         ))}
-        <p className="rappel-permanent">{T.neFermezPas}</p>
-        <ol className="codes" aria-label={T.titre}>
-          {codes.map((code) => (
-            <li key={code}>{code}</li>
-          ))}
-        </ol>
+        <RappelPermanent>{T.neFermezPas}</RappelPermanent>
+        <ListeCodes codes={codes} libelle={T.titre} />
         <p>
           <Bouton variante="secondaire" onClick={() => window.print()}>
             {T.imprimer}
@@ -82,19 +81,14 @@ export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffi
           />
           <Bouton>{T.continuer}</Bouton>
         </form>
-      </div>
-      <section className="feuille-impression" aria-hidden="true">
-        <p className="nom-application">{TEXTES.application}</p>
+      </HorsImpression>
+      <FeuilleImpression>
         <h2>{T.titre}</h2>
         <p>{nomAffiche}</p>
         <p>{`${T.imprimeLe} ${dateEnToutesLettres(new Date())}`}</p>
-        <ol className="codes">
-          {codes.map((code) => (
-            <li key={code}>{code}</li>
-          ))}
-        </ol>
+        <ListeCodes codes={codes} />
         <p>{T.barrezApresUsage}</p>
-      </section>
+      </FeuilleImpression>
     </>
   );
 }

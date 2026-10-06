@@ -2,6 +2,7 @@
 // le rôle, sans bouton (aucune action inventée) ; bandeau d'arrivée après l'activation ou des codes perdus.
 import type { Metadata } from "next";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
+import { EtatVide } from "@/components/ui/EtatVide";
 import { type Parametres, premier } from "@/lib/parametres";
 import { personneConnectee } from "@/lib/session";
 import { TEXTES } from "@/textes";
@@ -22,7 +23,7 @@ export default async function Accueil({ searchParams }: { searchParams: Parametr
     <>
       {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
       <h1>{TEXTES.accueil.titre}</h1>
-      <p className="etat-vide">{vide}</p>
+      <EtatVide>{vide}</EtatVide>
     </>
   );
 }

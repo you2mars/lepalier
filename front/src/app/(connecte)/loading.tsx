@@ -1,10 +1,6 @@
 // Chargement (UX-30) : squelette de 3 cartes à la place de la liste.
+import { Squelette } from "@/components/ui/Squelette";
+
 export default function Chargement() {
-  return (
-    <div aria-busy="true">
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="squelette squelette-carte" />
-      ))}
-    </div>
-  );
+  return <Squelette forme="carte" nombre={3} />;
 }

@@ -10,3 +10,4 @@
 - Champ e-mail : `type="email"`, `autocomplete="username"`, `inputmode="email"`.
 - Champ mot de passe : `autocomplete="current-password"` à la connexion, `autocomplete="new-password"` à la création (activation) et à la réinitialisation.
 - Code de vérification (TOTP) : un seul champ, `inputmode="numeric"`, `autocomplete="one-time-code"` ; jamais six cases séparées.
+- Styles (préparation d'une refonte graphique) : toutes les couleurs, tailles de texte, polices, espacements, rayons et ombres passent par les variables CSS du bloc `:root` de `src/app/globals.css` ; aucune valeur en dur dans les composants ni les écrans, aucun style en ligne, aucune autre feuille de style. Les écrans n'ont pas de style propre : ils utilisent les composants de `src/components/ui`. Contrôlé par `src/app/styles.test.ts`.

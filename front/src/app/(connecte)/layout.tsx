@@ -2,6 +2,7 @@
 // (lib/session.ts) ; identity en panne : « Information momentanément indisponible » (UX-30).
 import type { ReactNode } from "react";
 import { CadreConnecte } from "@/components/cadre/CadreConnecte";
+import { CadrePublic } from "@/components/cadre/CadrePublic";
 import { personneConnectee } from "@/lib/session";
 import { TEXTES } from "@/textes";
 
@@ -9,14 +10,9 @@ export default async function MiseEnPageConnectee({ children }: { children: Reac
   const personne = await personneConnectee();
   if (personne === null) {
     return (
-      <>
-        <header className="entete-public">
-          <p className="nom-application">{TEXTES.application}</p>
-        </header>
-        <main id="contenu" className="contenu-public">
-          <p>{TEXTES.indisponible}</p>
-        </main>
-      </>
+      <CadrePublic>
+        <p>{TEXTES.indisponible}</p>
+      </CadrePublic>
     );
   }
   return <CadreConnecte personne={personne}>{children}</CadreConnecte>;

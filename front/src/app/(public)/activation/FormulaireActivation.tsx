@@ -3,12 +3,18 @@
 // activation/debut (au chargement) et activation/fin (à la dernière étape). Il reste dans l'adresse jusqu'à la
 // réussite, pour qu'un rechargement (au retour de l'App Store, par exemple) reprenne l'activation ; il n'en est
 // retiré qu'à ce moment-là. Les trois étapes restent dans la mémoire de la page ; rien n'est stocké ailleurs.
-import QRCode from "qrcode";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
+import { BoutonLien } from "@/components/ui/BoutonLien";
 import { Champ } from "@/components/ui/Champ";
 import { ChampMotDePasse } from "@/components/ui/ChampMotDePasse";
+import { CleARecopier } from "@/components/ui/CleARecopier";
+import { CodeQr } from "@/components/ui/CodeQr";
+import { Depliant } from "@/components/ui/Depliant";
+import { Encadre } from "@/components/ui/Encadre";
+import { LienBouton } from "@/components/ui/LienBouton";
+import { Squelette } from "@/components/ui/Squelette";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
 import { cleDeLUri } from "@/lib/otpauth";
@@ -42,14 +48,12 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
 
   const [phase, setPhase] = useState<Phase>("chargement");
   const [debut, setDebut] = useState<Debut | null>(null);
-  const [qr, setQr] = useState<string>();
   const [etape, setEtape] = useState<Etape>(0);
   const [nom, setNom] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [code, setCode] = useState("");
   const [erreurs, setErreurs] = useState<{ nom?: string; motDePasse?: string; code?: string }>({});
   const [bandeau, setBandeau] = useState<Message | null>(null);
-  const [cleCopiee, setCleCopiee] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   // élément à focaliser après le rendu (titre de l'étape ou champ à corriger) ; n relance la demande
   const [focus, setFocus] = useState<{ cible: Cible; n: number } | null>(null);
@@ -81,17 +85,6 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
       actif = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!debut) return;
-    let actif = true;
-    void QRCode.toString(debut.uri_otpauth, { type: "svg", errorCorrectionLevel: "M", margin: 2 }).then((svg) => {
-      if (actif) setQr(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
-    });
-    return () => {
-      actif = false;
-    };
-  }, [debut]);
 
   useEffect(() => {
     if (!focus) return;
@@ -173,15 +166,6 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     }
   }
 
-  async function copierCle(cle: string) {
-    try {
-      await navigator.clipboard.writeText(cle);
-      setCleCopiee(true);
-    } catch {
-      // presse-papiers indisponible : la clé reste affichée pour être recopiée
-    }
-  }
-
   if (phase === "sansJeton") {
     return (
       <>
@@ -203,7 +187,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
       <>
         {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
         <h1>{T.titre}</h1>
-        {phase === "chargement" ? <div className="squelette" aria-busy="true" /> : null}
+        {phase === "chargement" ? <Squelette /> : null}
       </>
     );
   }
@@ -211,28 +195,23 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
   const groupes = cleDeLUri(debut.uri_otpauth);
   const etapePrecedente =
     etape > 0 ? (
-      <p>
-        <button type="button" className="bouton-lien" onClick={() => allerA((etape - 1) as Etape)}>
-          {T.etapePrecedente}
-        </button>
-      </p>
+      <BoutonLien onClick={() => allerA((etape - 1) as Etape)}>{T.etapePrecedente}</BoutonLien>
     ) : null;
 
   return (
     <>
       {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
       <h1>{T.titre}</h1>
-      <div className="encadre">
+      <Encadre>
         <p>{T.avantDeCommencer}</p>
-        <details>
-          <summary>{T.autresApplications}</summary>
+        <Depliant resume={T.autresApplications}>
           <ul>
             {T.autresApplicationsListe.map((application) => (
               <li key={application}>{application}</li>
             ))}
           </ul>
-        </details>
-      </div>
+        </Depliant>
+      </Encadre>
       <p>{`${T.adresseDeConnexion} ${debut.email}`}</p>
       <h2 ref={titreEtape} tabIndex={-1}>
         {T.etapes[etape]}
@@ -282,20 +261,12 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             <li>{T.consigneOrdinateur}</li>
           </ul>
           <p>
-            <a className="bouton bouton-secondaire" href={debut.uri_otpauth}>
-              {T.ajouter}
-            </a>
+            <LienBouton href={debut.uri_otpauth}>{T.ajouter}</LienBouton>
           </p>
           <p>{T.rienNeSouvre}</p>
-          {qr ? <img className="qr" src={qr} alt={T.altQr} width={200} height={200} /> : null}
+          <CodeQr valeur={debut.uri_otpauth} alt={T.altQr} />
           <p>{T.cleManuelle}</p>
-          <p className="cle">
-            <code aria-label={groupes.join(" ")}>{groupes.join(" ")}</code>{" "}
-            <button type="button" className="bouton bouton-secondaire" onClick={() => copierCle(groupes.join(""))}>
-              {T.copierCle}
-            </button>
-          </p>
-          <p role="status">{cleCopiee ? T.cleCopiee : ""}</p>
+          <CleARecopier groupes={groupes} />
           <form method="post" onSubmit={activer} noValidate>
             <Champ
               id="code"

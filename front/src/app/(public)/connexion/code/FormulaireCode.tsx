@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
+import { BoutonLien } from "@/components/ui/BoutonLien";
 import { Champ } from "@/components/ui/Champ";
 import { envoyer } from "@/lib/api";
 import { adresseConnexion, cheminDeRetour } from "@/lib/retour";
@@ -86,15 +87,9 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
           value={code}
           onChange={(e) => setCode(e.target.value)}
         />
-        <p className="action-sous-champ">
-          <button
-            type="button"
-            className="bouton-lien"
-            onClick={() => changerDeMode(secours ? "application" : "secours")}
-          >
-            {secours ? TEXTES.code.utiliserApplication : TEXTES.code.utiliserSecours}
-          </button>
-        </p>
+        <BoutonLien sousChamp onClick={() => changerDeMode(secours ? "application" : "secours")}>
+          {secours ? TEXTES.code.utiliserApplication : TEXTES.code.utiliserSecours}
+        </BoutonLien>
         <Bouton envoiEnCours={envoiEnCours}>{TEXTES.connexion.bouton}</Bouton>
       </form>
       <p>
