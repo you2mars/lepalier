@@ -456,6 +456,25 @@ print(uid, secret.hex())
 """
 
 
+# 2 codes de secours pour un compte : affichés en clair une seule fois, comme à l'activation
+AJOUTER_CODES_SECOURS = """
+from sqlalchemy import insert
+from app.db import fabrique
+from app.engines import codes_secours
+from app.models import CODE_SECOURS
+from commun.ids import uuid7
+codes = codes_secours.generer()[:2]
+with fabrique()() as s, s.begin():
+    for code in codes:
+        s.execute(insert(CODE_SECOURS).values(
+            id=uuid7(), utilisateur_id="{uid}", empreinte=codes_secours.hacher(code)
+        ))
+print(*codes)
+"""
+# un compte par projet Playwright (front/playwright.config.ts) : l'anti-rejeu refuse deux fois un même code
+PROJETS_PLAYWRIGHT = ("ordinateur", "mobile-360")
+
+
 def _code_totp(secret: bytes) -> str:
     """RFC 6238 (SHA-1, 6 chiffres, 30 s), comme les applications d'authentification."""
     empreinte = hmac.new(secret, struct.pack(">Q", int(time.time() // 30)), hashlib.sha1).digest()
@@ -748,6 +767,12 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "Dépendances du front absentes : lancez « cd front && npm ci » avant make test-plateforme."
     )
     plateforme.python(CREER_COMPTE.format(email="e2e@essai.local", mdp=MOT_DE_PASSE))
+    comptes_code = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-code-{projet}@essai.local"
+        uid, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
+        secours = plateforme.python(AJOUTER_CODES_SECOURS.format(uid=uid)).stdout.split()
+        comptes_code[projet] = {"email": email, "secret": secret, "secours": secours}
     plateforme.compose(
         "up",
         "-d",
@@ -765,6 +790,7 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_URL": plateforme.https,
         "LEPALIER_E2E_EMAIL": "e2e@essai.local",
         "LEPALIER_E2E_MOT_DE_PASSE": MOT_DE_PASSE,
+        "LEPALIER_E2E_COMPTES_CODE": json.dumps(comptes_code),
         # dossiers du conteneur Playwright, pas de l'hôte
         "LEPALIER_E2E_SORTIE": "/tmp/resultats",  # noqa: S108
         "HOME": "/tmp",  # noqa: S108

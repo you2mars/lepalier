@@ -68,3 +68,16 @@ a { color: var(--action); text-underline-offset: 0.15em; }
 .bandeau-fait { border-color: var(--fait); }
 .bandeau-attention { border-color: var(--attention); }
 .bandeau-erreur { border-color: var(--erreur); }
+/* action secondaire dans la page (changer de mode), présentée comme un lien ; cible de 44 px */
+.bouton-lien {
+  min-height: 44px;
+  padding: 0;
+  font: inherit;
+  color: var(--action);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+.action-sous-champ { margin: calc(var(--espace) * -2) 0 calc(var(--espace) * 3); }

@@ -20,6 +20,19 @@ export const TEXTES = {
     deconnexionEffectuee: "Déconnexion effectuée.",
     motDePasseChange: "Votre mot de passe a été changé. Connectez-vous avec le nouveau mot de passe.",
   },
+  code: {
+    titre: "Code de vérification",
+    consigne: "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres affiché pour LePalier.",
+    libelle: "Code à 6 chiffres",
+    aide: "Le code change toutes les 30 secondes : saisissez celui affiché en ce moment.",
+    libelleSecours: "Code de secours",
+    aideSecours: "Chaque code de secours ne sert qu'une fois.",
+    utiliserSecours: "Utiliser un code de secours",
+    utiliserApplication: "Utiliser le code de l'application",
+    recommencer: "Recommencer la connexion",
+    sansTelephone:
+      "Vous n'avez plus votre téléphone ni vos codes de secours ? Demandez au gérant de la SCI de réinitialiser votre accès.",
+  },
   // repris de libs/commun (erreurs.py, identite.py) pour les cas sans réponse de l'API ; un test vérifie l'égalité
   commun: {
     erreurInattendue: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",

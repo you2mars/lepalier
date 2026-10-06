@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cheminDeRetour } from "./retour";
+import { adresseConnexion, cheminDeRetour } from "./retour";
 
 // Retour à la page demandée après une reconnexion : chemins internes de LePalier seulement (maquettes v3, § 0.3).
 describe("cheminDeRetour", () => {
@@ -43,5 +43,19 @@ describe("cheminDeRetour", () => {
     ["/administration/../connexion"],
   ])("refuse %s et renvoie à l'accueil", (brut) => {
     expect(cheminDeRetour(brut)).toBe("/");
+  });
+});
+
+// Adresse de l'écran Se connecter, avec le motif du bandeau d'arrivée et le chemin de retour contrôlé.
+describe("adresseConnexion", () => {
+  it.each([
+    [null, null, "/connexion"],
+    ["delai_depasse", null, "/connexion?motif=delai_depasse"],
+    [null, "/administration/utilisateurs", "/connexion?retour=%2Fadministration%2Futilisateurs"],
+    ["trop_de_codes", "/administration/utilisateurs", "/connexion?motif=trop_de_codes&retour=%2Fadministration%2Futilisateurs"],
+    ["compte_suspendu", "//pirate.example", "/connexion?motif=compte_suspendu"],
+    [null, "/", "/connexion"],
+  ])("motif %s, retour %s : %s", (motif, retour, attendue) => {
+    expect(adresseConnexion(motif, retour)).toBe(attendue);
   });
 });

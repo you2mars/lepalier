@@ -49,3 +49,13 @@ export function cheminDeRetour(brut: string | null | undefined): string {
   if (publique(url.pathname) || publique(normalise.pathname)) return ACCUEIL;
   return url.pathname + url.search;
 }
+
+// Adresse de Se connecter : motif du bandeau d'arrivée et chemin de retour contrôlé (l'accueil n'est pas transmis).
+export function adresseConnexion(motif: string | null, retour: string | null | undefined): string {
+  const parametres = new URLSearchParams();
+  if (motif) parametres.set("motif", motif);
+  const chemin = cheminDeRetour(retour);
+  if (chemin !== ACCUEIL) parametres.set("retour", chemin);
+  const requete = parametres.toString();
+  return requete ? `/connexion?${requete}` : "/connexion";
+}

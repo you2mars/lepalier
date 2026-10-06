@@ -31,6 +31,23 @@ describe("textes du front", () => {
     });
   });
 
+  it("écran Code de vérification (N7 à N10)", () => {
+    expect(TEXTES.code).toEqual({
+      titre: "Code de vérification",
+      consigne:
+        "Ouvrez votre application d'authentification et saisissez le code à 6 chiffres affiché pour LePalier.",
+      libelle: "Code à 6 chiffres",
+      aide: "Le code change toutes les 30 secondes : saisissez celui affiché en ce moment.",
+      libelleSecours: "Code de secours",
+      aideSecours: "Chaque code de secours ne sert qu'une fois.",
+      utiliserSecours: "Utiliser un code de secours",
+      utiliserApplication: "Utiliser le code de l'application",
+      recommencer: "Recommencer la connexion",
+      sansTelephone:
+        "Vous n'avez plus votre téléphone ni vos codes de secours ? Demandez au gérant de la SCI de réinitialiser votre accès.",
+    });
+  });
+
   it("messages de commun repris quand aucune réponse de l'API n'est disponible : identiques à libs/commun", () => {
     const racine = join(__dirname, "..", "..", "libs", "commun", "src", "commun");
     const constante = (fichier: string, nom: string) =>
