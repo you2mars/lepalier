@@ -84,6 +84,25 @@ describe("textes du front", () => {
     });
   });
 
+  it("écran Codes de secours (N16 à N18 ; feuille imprimée : constat mineur n° 4)", () => {
+    expect(TEXTES.codes).toEqual({
+      titre: "Vos codes de secours",
+      consigne: [
+        "Si vous perdez votre téléphone, ces codes vous permettront de vous connecter. Chaque code ne sert qu'une fois.",
+        "Recopiez-les sur une feuille ou imprimez-les, puis rangez-les avec vos papiers importants. Ils ne seront plus jamais affichés.",
+      ],
+      neFermezPas: "Ne fermez pas cette page avant d'avoir noté vos codes.",
+      imprimer: "Imprimer",
+      caseNotes: "J'ai noté mes codes",
+      continuer: "Continuer vers l'accueil",
+      caseNonCochee: "Cochez cette case une fois vos codes notés : ils ne seront plus affichés.",
+      perdus:
+        "Vos codes de secours ne peuvent plus être affichés. Si vous ne les avez pas notés, demandez au gérant de réinitialiser votre accès.",
+      barrezApresUsage: "Chaque code ne sert qu'une fois : barrez-le après usage.",
+      imprimeLe: "Imprimé le",
+    });
+  });
+
   it("messages de commun repris quand aucune réponse de l'API n'est disponible : identiques à libs/commun", () => {
     const racine = join(__dirname, "..", "..", "libs", "commun", "src", "commun");
     const constante = (fichier: string, nom: string) =>

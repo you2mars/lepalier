@@ -89,7 +89,7 @@ test.describe("Activer mon compte", () => {
     expect(await cle(page)).toBe(premiereCle);
   });
 
-  test("mot de passe refusé : retour à l'étape 2 ; code faux : message ; puis compte activé (R0-05)", async ({
+  test("mot de passe refusé : retour à l'étape 2 ; code faux : message ; compte activé puis codes de secours (R0-05)", async ({
     page,
   }, infos) => {
     await ouvrirLeLien(page, jetonInvitation(infos.project.name));
@@ -116,9 +116,51 @@ test.describe("Activer mon compte", () => {
 
     await code.fill(codeTotp(secret));
     await page.getByRole("button", { name: T.bouton }).click();
-    await expect(page.getByRole("heading", { level: 1, name: T.titre })).toHaveCount(0);
     // le lien ne quitte la barre d'adresse qu'une fois le compte activé
-    expect(new URL(page.url()).hash).toBe("");
+    await expect(page).toHaveURL(/\/activation\/codes$/);
     expect((await page.context().cookies()).map((c) => c.name)).toContain("lp_session");
+
+    // écran 4 : codes de secours, une seule fois
+    const C = TEXTES.codes;
+    await expect(page).toHaveTitle("Vos codes de secours — LePalier");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(C.titre);
+    await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+    await expect(page.getByRole("list", { name: C.titre }).getByRole("listitem")).toHaveCount(10);
+    await verifierAccessibilite(page);
+    await page.getByRole("button", { name: C.continuer }).click();
+    const caseNotes = page.getByRole("checkbox", { name: C.caseNotes });
+    await expect(caseNotes).toHaveAccessibleDescription(C.caseNonCochee);
+    await expect(caseNotes).toBeFocused();
+    await expect(page).toHaveURL(/\/activation\/codes$/);
+
+    // case non cochée : le navigateur demande confirmation avant de recharger ; « Rester » garde les codes
+    // rechargement différé : evaluate rend la main avant que la boîte de confirmation ne bloque la page
+    const [confirmation] = await Promise.all([
+      page.waitForEvent("dialog"),
+      page.evaluate(() => {
+        setTimeout(() => window.location.reload(), 0);
+      }),
+    ]);
+    expect(confirmation.type()).toBe("beforeunload");
+    await confirmation.dismiss();
+    await expect(page.getByRole("list", { name: C.titre }).getByRole("listitem")).toHaveCount(10);
+
+    // feuille imprimée : seule visible à l'impression
+    await page.emulateMedia({ media: "print" });
+    await expect(page.locator(".feuille-impression")).toBeVisible();
+    await expect(page.locator(".feuille-impression")).toContainText("M. Essai Activé");
+    await expect(page.locator(".feuille-impression")).toContainText(C.barrezApresUsage);
+    await expect(page.locator(".feuille-impression")).toContainText(/Imprimé le \S+ \d+/);
+    await expect(page.getByRole("heading", { level: 1 })).toBeHidden();
+    await page.emulateMedia({ media: "screen" });
+
+    await caseNotes.check();
+    await page.getByRole("button", { name: C.continuer }).click();
+    await expect(page).toHaveURL(/\/\?motif=compte_active$/);
+  });
+
+  test("/activation/codes rechargée : codes perdus, accueil avec le bandeau qui le dit", async ({ page }) => {
+    await page.goto("/activation/codes");
+    await expect(page).toHaveURL(/\/\?motif=codes_perdus$/);
   });
 });

@@ -67,6 +67,23 @@ export const TEXTES = {
     // accès à /activation sans le lien de l'e-mail (décision du 6 octobre 2026) ; « lien invalide » reste au 410
     sansLien: "Pour activer votre compte, ouvrez le lien reçu dans l'e-mail d'invitation.",
   },
+  codes: {
+    titre: "Vos codes de secours",
+    consigne: [
+      "Si vous perdez votre téléphone, ces codes vous permettront de vous connecter. Chaque code ne sert qu'une fois.",
+      "Recopiez-les sur une feuille ou imprimez-les, puis rangez-les avec vos papiers importants. Ils ne seront plus jamais affichés.",
+    ],
+    neFermezPas: "Ne fermez pas cette page avant d'avoir noté vos codes.",
+    imprimer: "Imprimer",
+    caseNotes: "J'ai noté mes codes",
+    continuer: "Continuer vers l'accueil",
+    caseNonCochee: "Cochez cette case une fois vos codes notés : ils ne seront plus affichés.",
+    perdus:
+      "Vos codes de secours ne peuvent plus être affichés. Si vous ne les avez pas notés, demandez au gérant de réinitialiser votre accès.",
+    // feuille imprimée
+    barrezApresUsage: "Chaque code ne sert qu'une fois : barrez-le après usage.",
+    imprimeLe: "Imprimé le",
+  },
   // repris de libs/commun (erreurs.py, identite.py) pour les cas sans réponse de l'API ; un test vérifie l'égalité
   commun: {
     erreurInattendue: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",
