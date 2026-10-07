@@ -2,7 +2,7 @@
 // R0-20 à R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant et un associé par projet.
 import { libelle } from "../src/lib/libelles";
 import { TEXTES } from "../src/textes";
-import { compteAdmin, compteVise, expect, sansDefilementHorizontal, test, verifierAccessibilite } from "./aides";
+import { compteAdmin, compteVise, expect, pret, sansDefilementHorizontal, test, verifierAccessibilite } from "./aides";
 
 const L = TEXTES.utilisateurs.liste;
 const I = TEXTES.utilisateurs.inviter;
@@ -48,6 +48,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     await page.goto("/administration/utilisateurs");
     await page.getByRole("link", { name: L.inviter }).click();
     await expect(page).toHaveTitle("Inviter une personne — LePalier");
+    await pret(page);
     const nom = `Mme Invitée ${infos.project.name}`;
     const adresse = `invitee-${infos.project.name}@essai.local`;
     await page.getByLabel(I.nomAffiche).fill(nom);
@@ -98,6 +99,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     const moi = compteAdmin("gerant", infos.project.name);
     await page.goto("/administration/utilisateurs");
     await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${moi.nom}` }).first().click();
+    await pret(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Accès de ${moi.nom}`);
     await expect(page.getByText(F.soiMeme)).toBeVisible();
     await expect(page.getByRole("button", { name: F.suspendre.bouton })).toHaveCount(0);
@@ -111,6 +113,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     const cible = compteVise("cible", infos.project.name);
     await page.goto("/administration/utilisateurs");
     await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${cible.nom}` }).first().click();
+    await pret(page);
     await expect(page.getByText("Statut : Accès actif")).toBeVisible();
 
     await page.getByRole("button", { name: F.suspendre.bouton }).click();
@@ -140,6 +143,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     const invite = compteVise("invite", infos.project.name);
     await page.goto("/administration/utilisateurs");
     await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${invite.nom}` }).first().click();
+    await pret(page);
     await expect(page.getByText(/^Invitation envoyée le .+, valable jusqu'au .+\.$/)).toBeVisible();
 
     await page.getByRole("button", { name: F.renvoyer.bouton }).click();

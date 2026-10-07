@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { SignalHydratation } from "@/components/cadre/SignalHydratation";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "LePalier" };
@@ -11,7 +12,10 @@ export const dynamic = "force-dynamic";
 export default function MiseEnPageRacine({ children }: { children: ReactNode }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <SignalHydratation />
+        {children}
+      </body>
     </html>
   );
 }

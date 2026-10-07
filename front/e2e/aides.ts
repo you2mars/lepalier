@@ -23,8 +23,23 @@ declare global {
 // qui se reconnecterait dans la même fenêtre de 30 s serait refusé (anti-rejeu).
 type RoleAdmin = "gerant" | "associe";
 
+// page prise en main par React (SignalHydratation) : avant, un clic ou une saisie serait perdu ou défait
+export async function pret(page: Page): Promise<void> {
+  await page.locator("html[data-hydrate]").waitFor({ state: "attached" });
+}
+
 export const test = base.extend<{ violationsCsp: string[]; sessionAdmin: RoleAdmin | undefined }>({
   sessionAdmin: [undefined, { option: true }],
+  // chaque page.goto attend la prise en main de la page par React (sauf about:blank)
+  page: async ({ page }, utiliser) => {
+    const aller = page.goto.bind(page);
+    page.goto = async (adresse, options) => {
+      const reponse = await aller(adresse, options);
+      if (!adresse.startsWith("about:")) await pret(page);
+      return reponse;
+    };
+    await utiliser(page);
+  },
   storageState: async ({ sessionAdmin, browser, baseURL, storageState }, utiliser, infos) => {
     if (!sessionAdmin) return utiliser(storageState);
     const compte = compteAdmin(sessionAdmin, infos.project.name);
