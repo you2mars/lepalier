@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MessageFlashProvider } from "@/components/cadre/MessageFlash";
@@ -249,6 +249,39 @@ describe("Gérer l'accès : actions sans confirmation (réversibles)", () => {
       "Invitation renvoyée à Mme Durand (marie.durand@exemple.fr). Le nouveau lien est valable 7 jours ; l'ancien ne fonctionne plus.",
     );
     expect(appel.mock.calls[0]![0]).toBe("/api/identity/utilisateurs/0192-b/renvoyer-invitation");
+  });
+});
+
+describe("Gérer l'accès : fiche relue après une action", () => {
+  it("jusqu'à l'arrivée de la fiche relue, aucune autre action ne part (sinon la relecture pourrait défaire la suivante)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(202)));
+    const { rerender } = afficher(INVITE);
+    await userEvent.click(bouton(F.renvoyer.bouton));
+    await screen.findByRole("status");
+    expect(rafraichir).toHaveBeenCalled();
+    expect(bouton(F.annulerInvitation.bouton)).toBeDisabled();
+    expect(bouton(F.renvoyer.bouton)).toBeDisabled();
+    // fiche relue par le serveur : nouvel objet, actions de nouveau possibles
+    rerender(
+      <MessageFlashProvider>
+        <GestionAcces fiche={{ ...INVITE }} estMoi={false} />
+      </MessageFlashProvider>,
+    );
+    expect(bouton(F.annulerInvitation.bouton)).toBeEnabled();
+  });
+
+  it("relecture qui n'arrive pas : actions de nouveau possibles après 5 secondes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(202)));
+    afficher(INVITE);
+    await userEvent.click(bouton(F.renvoyer.bouton));
+    await screen.findByRole("status");
+    expect(bouton(F.renvoyer.bouton)).toBeDisabled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(bouton(F.renvoyer.bouton)).toBeEnabled();
+    vi.useRealTimers();
   });
 });
 

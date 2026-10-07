@@ -4,7 +4,7 @@
 // récapitulative pour les actions irréversibles ou qui touchent la personne (UX-3), sans pour réactiver et renvoyer ;
 // chaque écriture avec sa clé d'idempotence ; bandeau qui dit ce qui s'est passé, puis fiche relue (UX-4).
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAnnonce } from "@/components/cadre/MessageFlash";
 import { Actions } from "@/components/ui/Actions";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
@@ -21,6 +21,8 @@ import { TEXTES } from "@/textes";
 
 const F = TEXTES.utilisateurs.fiche;
 const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
+// au plus, attente de la fiche relue avant de permettre de nouveau les actions (relecture qui n'arrive pas)
+const RELECTURE_MAX_MS = 5000;
 
 export type Fiche = {
   id: string;
@@ -59,6 +61,22 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
   const [confirmation, setConfirmation] = useState<Action | null>(null);
   const [enCours, setEnCours] = useState<Action | null>(null);
   const [message, setMessage] = useState<Message | null>(null);
+  // fiche en cours de relecture après une action : aucune autre action ne part avant, sinon la réponse de la
+  // relecture, arrivée après, pourrait défaire la navigation ou l'état de l'action suivante
+  const [relecture, setRelecture] = useState(false);
+  useEffect(() => {
+    setRelecture(false);
+  }, [fiche]);
+  useEffect(() => {
+    if (!relecture) return;
+    const attente = setTimeout(() => setRelecture(false), RELECTURE_MAX_MS);
+    return () => clearTimeout(attente);
+  }, [relecture]);
+
+  function relire() {
+    setRelecture(true);
+    routeur.refresh();
+  }
   const valeurs = { nom: fiche.nom_affiche, adresse: fiche.email };
 
   async function agir(action: Action) {
@@ -77,7 +95,7 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
         return;
       }
       setMessage({ etat: "fait", texte });
-      routeur.refresh();
+      relire();
       return;
     }
     if (resultat.statut === 401) {
@@ -86,7 +104,7 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
     }
     // refus d'identity (409 : dernier gérant, compte non activé…) ; la fiche a pu changer entre-temps
     setMessage({ etat: resultat.statut === 409 ? "attention" : "erreur", texte: resultat.erreur.message });
-    if (resultat.statut === 409) routeur.refresh();
+    if (resultat.statut === 409) relire();
   }
 
   function bouton(action: Action, avecConfirmation: boolean) {
@@ -95,6 +113,7 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
         key={action}
         variante="secondaire"
         envoiEnCours={enCours === action && confirmation === null}
+        disabled={relecture || (enCours !== null && enCours !== action)}
         onClick={() => (avecConfirmation ? setConfirmation(action) : agir(action))}
       >
         {F[action].bouton}

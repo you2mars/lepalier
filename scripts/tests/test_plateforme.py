@@ -866,7 +866,10 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_COMPTES_ACCUEIL": json.dumps(comptes_accueil),
         "LEPALIER_E2E_COMPTES_ADMIN": json.dumps(comptes_admin),
         # dossiers du conteneur Playwright, pas de l'hôte
-        "LEPALIER_E2E_SORTIE": "/tmp/resultats",  # noqa: S108
+        # dossier parent monté si les résultats sont gardés sur l'hôte : Playwright vide et recrée le sien
+        "LEPALIER_E2E_SORTIE": "/tmp/hote/resultats"  # noqa: S108
+        if "LEPALIER_E2E_RESULTATS_HOTE" in os.environ
+        else "/tmp/resultats",  # noqa: S108
         "HOME": "/tmp",  # noqa: S108
     }
     r = subprocess.run(
@@ -881,6 +884,12 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
             *[arg for nom, valeur in variables.items() for arg in ("-e", f"{nom}={valeur}")],
             "-v",
             f"{RACINE}:/srv/depot:ro",
+            # résultats (traces, captures) gardés sur l'hôte pour un diagnostic, seulement si demandé
+            *(
+                ["-v", f"{os.environ['LEPALIER_E2E_RESULTATS_HOTE']}:/tmp/hote"]
+                if "LEPALIER_E2E_RESULTATS_HOTE" in os.environ
+                else []
+            ),
             "-w",
             "/srv/depot/front",
             IMAGE_PLAYWRIGHT,
