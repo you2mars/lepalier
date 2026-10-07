@@ -1,6 +1,8 @@
 // Aides des essais de bout en bout : toute violation de la politique de sécurité (CSP) signalée par le
 // navigateur ou dans la console fait échouer l'essai ; contrôle d'accessibilité axe-core (WCAG 2.1 AA).
 import { createHmac } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test as base } from "@playwright/test";
 import { TEXTES } from "../src/textes";
@@ -13,7 +15,37 @@ declare global {
 
 // limite de débit de /api/identity/auth/ : haute dans le projet d'essai (compose.essai.yml), aucun espacement ici ;
 // la vraie limite est vérifiée par N13 (scripts/tests/test_plateforme.py)
-export const test = base.extend<{ violationsCsp: string[] }>({
+// Sessions enregistrées (storageState) : un compte de l'administration se connecte une seule fois par projet (un
+// travailleur par projet) ; les essais qui ne testent pas la connexion repartent de cette session. Les essais de
+// connexion, de code, d'activation, de l'accueil et de suspension se connectent eux-mêmes.
+type RoleAdmin = "gerant" | "associe";
+
+export const test = base.extend<
+  { violationsCsp: string[]; sessionAdmin: RoleAdmin | undefined },
+  { sessionsEnregistrees: Map<string, string> }
+>({
+  sessionAdmin: [undefined, { option: true }],
+  sessionsEnregistrees: [
+    // eslint-disable-next-line no-empty-pattern -- fixture sans dépendance (exigence de Playwright)
+    async ({}, utiliser) => {
+      await utiliser(new Map());
+    },
+    { scope: "worker" },
+  ],
+  storageState: async ({ sessionAdmin, sessionsEnregistrees, browser, baseURL, storageState }, utiliser, infos) => {
+    if (!sessionAdmin) return utiliser(storageState);
+    const compte = compteAdmin(sessionAdmin, infos.project.name);
+    let chemin = sessionsEnregistrees.get(compte.email);
+    if (!chemin) {
+      const contexte = await browser.newContext({ baseURL, ignoreHTTPSErrors: true, locale: "fr-FR" });
+      await seConnecter(await contexte.newPage(), compte.email, compte.secret);
+      chemin = join(tmpdir(), `session-${infos.project.name}-${sessionAdmin}.json`);
+      await contexte.storageState({ path: chemin });
+      await contexte.close();
+      sessionsEnregistrees.set(compte.email, chemin);
+    }
+    await utiliser(chemin);
+  },
   violationsCsp: [
     async ({ page }, utiliser) => {
       const violations: string[] = [];

@@ -2,18 +2,20 @@
 // R0-20 à R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant et un associé par projet.
 import { libelle } from "../src/lib/libelles";
 import { TEXTES } from "../src/textes";
-import { compteAdmin, expect, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
+import { compteAdmin, expect, sansDefilementHorizontal, test, verifierAccessibilite } from "./aides";
 
 const L = TEXTES.utilisateurs.liste;
 const I = TEXTES.utilisateurs.inviter;
 
-test.describe("Administration › Utilisateurs", () => {
+test.describe("Administration › Utilisateurs, gérant", () => {
+  test.use({ sessionAdmin: "gerant" });
+
   test("gérant : depuis le menu, liste des utilisateurs, fil d'Ariane, accessibilité, 360 px et zoom 200 % (R0-04)", async ({
     page,
     isMobile,
   }, infos) => {
     const compte = compteAdmin("gerant", infos.project.name);
-    await seConnecter(page, compte.email, compte.secret);
+    await page.goto("/");
     await page.getByRole("navigation", { name: TEXTES.cadre.menuPrincipal }).getByRole("link", { name: TEXTES.cadre.administration }).click();
     await expect(page).toHaveURL(/\/administration\/utilisateurs$/);
     await expect(page).toHaveTitle("Utilisateurs — LePalier");
@@ -42,8 +44,6 @@ test.describe("Administration › Utilisateurs", () => {
   test("inviter : confirmation récapitulative (Échap, « Modifier »), envoi, bandeau et nouvelle ligne ; adresse déjà utilisée (R0-04)", async ({
     page,
   }, infos) => {
-    const compte = compteAdmin("gerant", infos.project.name);
-    await seConnecter(page, compte.email, compte.secret);
     await page.goto("/administration/utilisateurs");
     await page.getByRole("link", { name: L.inviter }).click();
     await expect(page).toHaveTitle("Inviter une personne — LePalier");
@@ -90,11 +90,15 @@ test.describe("Administration › Utilisateurs", () => {
     await expect(champ).toBeFocused();
   });
 
+});
+
+test.describe("Administration › Utilisateurs, associé", () => {
+  test.use({ sessionAdmin: "associe" });
+
   test("associé : pas d'« Administration » au menu ; l'adresse ouverte quand même donne la page réservée (R0-06)", async ({
     page,
-  }, infos) => {
-    const compte = compteAdmin("associe", infos.project.name);
-    await seConnecter(page, compte.email, compte.secret);
+  }) => {
+    await page.goto("/");
     const menu = page.getByRole("navigation", { name: TEXTES.cadre.menuPrincipal });
     await expect(menu.getByRole("link", { name: TEXTES.cadre.administration })).toHaveCount(0);
     await page.goto("/administration/utilisateurs");
