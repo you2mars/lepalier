@@ -51,6 +51,7 @@ associés, opérateur — dont des personnes peu à l'aise avec l'informatique.
 8. Le dépôt fait foi pour les textes validés (libellés, e-mails, messages, vérifiés mot pour mot par les tests) ; en cas de doute, demande à Youssef, ne relis jamais les transcriptions de session.
 9. Jamais de push sur main ni de fusion sans CI verte (la protection de branche de GitHub n'est pas disponible : hook `pre-push` installé par `make hooks`).
 10. Échanges avec Youssef en français, tous les messages, y compris les messages intermédiaires, les bilans, les résumés et après un compactage de la conversation.
+11. Ne commiter qu'après avoir vérifié le code de sortie des tests eux-mêmes (jamais celui d'un tail, grep ou autre commande en bout de chaîne).
 
 ## Processus d'un lot (voir docs/PLAN_DE_DEV.md)
 1. `/lot N` : lire le lot, proposer l'ordre des tâches, créer la branche.
