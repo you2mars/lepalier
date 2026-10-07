@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erreurLongueurMotDePasse, nomAfficheValide } from "./saisie";
+import { emailValide, erreurLongueurMotDePasse, nomAfficheValide } from "./saisie";
 import { messageMotDePasse } from "./libelles";
 
 // Contrôles faits à la sortie du champ, mêmes règles qu'identity (engines/nom_affiche.py, engines/mot_de_passe.py) ;
@@ -46,4 +46,19 @@ describe("erreurLongueurMotDePasse", () => {
     expect(erreurLongueurMotDePasse("😀".repeat(12))).toBeUndefined();
     expect(erreurLongueurMotDePasse("😀".repeat(11))).toBe(messageMotDePasse("trop_court"));
   });
+});
+
+// Même règle qu'identity (api/saisie.py) : caractères ASCII imprimables, une « @ », un point dans le domaine ;
+// espaces ordinaires autour tolérés.
+describe("emailValide", () => {
+  it.each([["marie.durand@exemple.fr"], ["  paul+essai@exemple.co.uk "], ["A.B@exemple.fr"]])("accepte %j", (adresse) => {
+    expect(emailValide(adresse)).toBe(true);
+  });
+
+  it.each([[""], ["marie"], ["marie@exemple"], ["marie@@exemple.fr"], ["mar ie@exemple.fr"], ["marié@exemple.fr"], ["marie@exemple.fr\n"], [`${"a".repeat(250)}@x.fr`]])(
+    "refuse %j",
+    (adresse) => {
+      expect(emailValide(adresse)).toBe(false);
+    },
+  );
 });

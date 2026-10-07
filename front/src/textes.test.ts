@@ -146,6 +146,26 @@ describe("textes du front", () => {
       gererAccesDe: "de",
       colonnes: { nom: "Nom", adresse: "Adresse e-mail", role: "Rôle", statut: "Statut", actions: "Actions" },
     });
+    expect(TEXTES.utilisateurs.inviter).toEqual({
+      titre: "Inviter une personne",
+      filAriane: "Inviter",
+      nomAffiche: "Nom affiché",
+      aideNom: "Le nom que verront les autres utilisateurs. Par exemple : « Mme Durand ».",
+      adresse: "Adresse e-mail",
+      aideAdresse: "L'invitation sera envoyée à cette adresse.",
+      role: "Rôle",
+      optionRole: "{role} — {description}.",
+      envoyer: "Envoyer l'invitation",
+      annuler: "Annuler",
+      confirmation: {
+        question: "Envoyer l'invitation à {nom} ?",
+        adresse: "Adresse : {adresse}",
+        role: "Rôle : {role} — {description}.",
+        validite: "Le lien sera valable 7 jours.",
+        modifier: "Modifier",
+      },
+      succes: "Invitation envoyée à {nom} ({adresse}). Le lien est valable 7 jours.",
+    });
     expect(TEXTES.reservee).toEqual({
       titre: "Page réservée au gérant",
       reservee: "Cette page est réservée au gérant.",

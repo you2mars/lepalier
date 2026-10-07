@@ -54,7 +54,7 @@ beforeEach(() => {
 
 describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", () => {
   it("titre, titre de l'onglet, fil d'Ariane (« Administration » en texte, page en cours signalée)", async () => {
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(L.titre);
     expect(metadata.title).toBe("Utilisateurs — LePalier");
     const fil = screen.getByRole("navigation", { name: TEXTES.cadre.filAriane });
@@ -68,7 +68,7 @@ describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", (
   });
 
   it("« Inviter une personne » : bouton principal, seul de l'écran", async () => {
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     const inviter = screen.getByRole("link", { name: L.inviter });
     expect(inviter).toHaveAttribute("href", "/administration/utilisateurs/inviter");
     expect(inviter).toHaveClass("bouton-principal");
@@ -76,7 +76,7 @@ describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", (
   });
 
   it("tableau : nom, adresse, rôle en mots du lexique, statut en mots d'identity, dans l'ordre reçu (tri par nom)", async () => {
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     const tableau = screen.getByRole("table", { name: L.titre });
     const lignes = within(tableau).getAllByRole("row").slice(1);
     expect(
@@ -101,7 +101,7 @@ describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", (
   });
 
   it("« Gérer l'accès » : lien vers la fiche, complété « de {nom} » pour les lecteurs d'écran (M8)", async () => {
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     const tableau = screen.getByRole("table", { name: L.titre });
     const lien = within(tableau).getByRole("link", { name: "Gérer l'accès de Mme Durand" });
     expect(lien).toHaveAttribute("href", "/administration/utilisateurs/0192-b");
@@ -109,7 +109,7 @@ describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", (
   });
 
   it("mobile : une carte par personne (nom, rôle, statut), toute la carte est le lien vers la fiche", async () => {
-    const { container } = render(await Page());
+    const { container } = render(await Page({ searchParams: Promise.resolve({}) }));
     const cartes = within(container.querySelector(".cartes") as HTMLElement).getAllByRole("link");
     expect(cartes.map((c) => c.getAttribute("href"))).toEqual(UTILISATEURS.map((u) => `/administration/utilisateurs/${u.id}`));
     expect(cartes[1]).toHaveAccessibleName("Gérer l'accès de Mme Durand");
@@ -120,7 +120,7 @@ describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", (
 
   it("identity en panne : « Information momentanément indisponible », titre et bouton gardés (UX-30)", async () => {
     lireConnecte.mockResolvedValue({ ok: false, statut: 502 });
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(L.titre);
     expect(screen.getByText(TEXTES.indisponible)).toBeInTheDocument();
     expect(screen.queryByRole("table")).toBeNull();
@@ -133,7 +133,7 @@ describe("Page réservée au gérant (maquettes v3, écran 7 ; R0-06)", () => {
     ["opérateur", { ...GERANT, role: "operateur" as const }],
   ])("%s : titre, explication, « Retour à l'accueil » en bouton principal ; aucune lecture des utilisateurs", async (_, qui) => {
     personne = qui;
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TEXTES.reservee.titre);
     expect(screen.getByText(TEXTES.reservee.reservee)).toBeInTheDocument();
     expect(screen.getByText(TEXTES.reservee.demandez)).toBeInTheDocument();
@@ -145,7 +145,23 @@ describe("Page réservée au gérant (maquettes v3, écran 7 ; R0-06)", () => {
 
   it("refus d'identity (403, rôle changé entre-temps) : même page, jamais une page blanche", async () => {
     lireConnecte.mockResolvedValue({ ok: false, statut: 403 });
-    render(await Page());
+    render(await Page({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TEXTES.reservee.titre);
+  });
+});
+
+describe("Après une invitation : la liste dit ce qui a été fait (UX-4, UX-24)", () => {
+  it("bandeau « Fait » avec le nom et l'adresse, lus dans la liste ; aucune donnée personnelle dans l'adresse de la page", async () => {
+    render(await Page({ searchParams: Promise.resolve({ invitee: "0192-b" }) }));
+    const bandeau = screen.getByRole("status");
+    expect(bandeau).toHaveTextContent(TEXTES.etats.fait);
+    expect(bandeau).toHaveTextContent(
+      "Invitation envoyée à Mme Durand (marie.durand@exemple.fr). Le lien est valable 7 jours.",
+    );
+  });
+
+  it("identifiant inconnu : aucun bandeau", async () => {
+    const { container } = render(await Page({ searchParams: Promise.resolve({ invitee: "autre" }) }));
+    expect(container.querySelector(".bandeau")).toBeNull();
   });
 });

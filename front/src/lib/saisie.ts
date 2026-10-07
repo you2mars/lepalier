@@ -31,3 +31,12 @@ export function erreurLongueurMotDePasse(motDePasse: string): string | undefined
   if (mesure > MOT_DE_PASSE_MAX) return messageMotDePasse("trop_long");
   return undefined;
 }
+
+const EMAIL_LONGUEUR_MAX = 254;
+// caractères ASCII imprimables seulement (U+0021 à U+007E, hors « @ »), comme identity (api/saisie.py)
+const EMAIL = /^[!-?A-~]+@[!-?A-~]+\.[!-?A-~]+$/;
+
+export function emailValide(adresse: string): boolean {
+  const nettoyee = adresse.replace(/^ +| +$/g, "");
+  return nettoyee.length <= EMAIL_LONGUEUR_MAX && EMAIL.test(nettoyee);
+}

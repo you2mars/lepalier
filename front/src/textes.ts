@@ -118,6 +118,28 @@ export const TEXTES = {
       gererAccesDe: "de",
       colonnes: { nom: "Nom", adresse: "Adresse e-mail", role: "Rôle", statut: "Statut", actions: "Actions" },
     },
+    // écran 6.2 (N22, B) ; textes à trous remplis par lib/modele.ts
+    inviter: {
+      titre: "Inviter une personne",
+      filAriane: "Inviter",
+      nomAffiche: "Nom affiché",
+      aideNom: "Le nom que verront les autres utilisateurs. Par exemple : « Mme Durand ».",
+      adresse: "Adresse e-mail",
+      aideAdresse: "L'invitation sera envoyée à cette adresse.",
+      role: "Rôle",
+      optionRole: "{role} — {description}.",
+      envoyer: "Envoyer l'invitation",
+      annuler: "Annuler",
+      // confirmation sans date (décision du 7 octobre 2026) : la date exacte vient d'identity, dans la fiche
+      confirmation: {
+        question: "Envoyer l'invitation à {nom} ?",
+        adresse: "Adresse : {adresse}",
+        role: "Rôle : {role} — {description}.",
+        validite: "Le lien sera valable 7 jours.",
+        modifier: "Modifier",
+      },
+      succes: "Invitation envoyée à {nom} ({adresse}). Le lien est valable 7 jours.",
+    },
   },
   // page d'administration ouverte par un associé ou un opérateur (maquettes v3, écran 7 ; R0-06)
   reservee: {

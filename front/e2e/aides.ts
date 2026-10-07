@@ -111,13 +111,26 @@ export function compteAdmin(role: "gerant" | "associe", projet: string): CompteC
   return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${role}-${projet}`);
 }
 
+// dernier pas TOTP utilisé par clé : identity refuse deux fois le même code (anti-rejeu), y compris d'un essai à
+// l'autre pour un même compte
+const dernierPas = new Map<string, number>();
+
+async function codeNeuf(secretHex: string): Promise<string> {
+  const pas = Math.floor(Date.now() / 30000);
+  if ((dernierPas.get(secretHex) ?? -1) >= pas) {
+    await new Promise((fin) => setTimeout(fin, (pas + 1) * 30000 - Date.now() + 200));
+  }
+  dernierPas.set(secretHex, Math.floor(Date.now() / 30000));
+  return codeTotp(secretHex);
+}
+
 // connexion complète : adresse, mot de passe (MOT_DE_PASSE de l'essai), puis code de l'application
 export async function seConnecter(page: Page, email: string, secretHex: string): Promise<void> {
   await page.goto("/connexion");
   await page.getByLabel(TEXTES.connexion.adresse).fill(email);
   await page.getByLabel(TEXTES.connexion.motDePasse, { exact: true }).fill(COMPTE.motDePasse);
   await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
-  await page.getByLabel(TEXTES.code.libelle).fill(codeTotp(secretHex));
+  await page.getByLabel(TEXTES.code.libelle).fill(await codeNeuf(secretHex));
   await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(TEXTES.accueil.titre);
 }
