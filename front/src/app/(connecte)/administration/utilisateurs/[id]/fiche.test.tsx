@@ -198,16 +198,16 @@ describe("Gérer l'accès : actions avec confirmation (UX-3)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("réinitialiser : confirmation avec la fin de validité du nouveau lien et l'adresse ; POST reinitialiser-acces", async () => {
+  it("réinitialiser : confirmation sans date (la date exacte vient d'identity dans la fiche relue) ; POST reinitialiser-acces", async () => {
     const appel = vi.fn().mockResolvedValue(reponse(202));
     vi.stubGlobal("fetch", appel);
     afficher(ACTIF);
     await userEvent.click(bouton(F.reinitialiser.bouton));
     const boite = screen.getByRole("dialog", { name: "Réinitialiser l'accès de Mme Durand ?" });
-    const fin = dateEnToutesLettres(new Date(Date.now() + 7 * 24 * 3600 * 1000));
     expect(boite).toHaveTextContent(
-      `Le mot de passe, les codes de secours et l'application d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours (jusqu'au ${fin}), sera envoyé à marie.durand@exemple.fr.`,
+      "Le mot de passe, les codes de secours et l'application d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours, sera envoyé à marie.durand@exemple.fr.",
     );
+    expect(boite).not.toHaveTextContent(/jusqu'au/);
     await userEvent.click(within(boite).getByRole("button", { name: F.reinitialiser.bouton }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accès de Mme Durand réinitialisé ; un e-mail lui a été envoyé.");
     expect(appel.mock.calls[0]![0]).toBe("/api/identity/utilisateurs/0192-b/reinitialiser-acces");

@@ -191,7 +191,7 @@ describe("textes du front", () => {
         bouton: "Réinitialiser l'accès",
         question: "Réinitialiser l'accès de {nom} ?",
         explication:
-          "Le mot de passe, les codes de secours et l'application d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours (jusqu'au {fin}), sera envoyé à {adresse}.",
+          "Le mot de passe, les codes de secours et l'application d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours, sera envoyé à {adresse}.",
         succes: "Accès de {nom} réinitialisé ; un e-mail lui a été envoyé.",
       },
       renvoyer: {

@@ -20,7 +20,6 @@ import type { Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
 
 const F = TEXTES.utilisateurs.fiche;
-const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000;
 // au plus, attente de la fiche relue avant de permettre de nouveau les actions (relecture qui n'arrive pas)
 const RELECTURE_MAX_MS = 5000;
 
@@ -134,10 +133,8 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
     {
       suspendre: { explication: F.suspendre.explication, annuler: F.annuler },
       reinitialiser: {
-        explication: remplir(F.reinitialiser.explication, {
-          fin: dateEnToutesLettres(new Date(Date.now() + SEPT_JOURS_MS)),
-          adresse: fiche.email,
-        }),
+        // sans date (décision du 7 octobre 2026) : la date exacte vient d'identity dans la fiche relue
+        explication: remplir(F.reinitialiser.explication, { adresse: fiche.email }),
         annuler: F.annuler,
       },
       annulerInvitation: { explication: remplir(F.annulerInvitation.explication, valeurs), annuler: F.annulerInvitation.garder },
