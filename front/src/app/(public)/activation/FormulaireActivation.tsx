@@ -3,7 +3,7 @@
 // activation/debut (au chargement) et activation/fin (à la dernière étape). Il reste dans l'adresse jusqu'à la
 // réussite, pour qu'un rechargement (au retour de l'App Store, par exemple) reprenne l'activation ; il n'en est
 // retiré qu'à ce moment-là. Les trois étapes restent dans la mémoire de la page ; rien n'est stocké ailleurs.
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
 import { BoutonLien } from "@/components/ui/BoutonLien";
@@ -15,6 +15,7 @@ import { Depliant } from "@/components/ui/Depliant";
 import { Encadre } from "@/components/ui/Encadre";
 import { LienBouton } from "@/components/ui/LienBouton";
 import { Squelette } from "@/components/ui/Squelette";
+import { Formulaire } from "@/components/ui/Formulaire";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
 import { cleDeLUri } from "@/lib/otpauth";
@@ -59,20 +60,6 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
   );
   const [bandeau, setBandeau] = useState<Message | null>(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
-  // Appui (souris, doigt) sur le bouton d'envoi : la sortie du champ qui suit ne vérifie rien, l'envoi le fera. Un
-  // message affiché entre l'appui et le relâchement déplacerait le bouton et le clic serait perdu. Au clavier, la
-  // vérification à la sortie du champ reste entière.
-  const appuiSurEnvoi = useRef(false);
-  const surAppuiEnvoi = () => {
-    appuiSurEnvoi.current = true;
-  };
-  function aLaSortie(verifier: () => void) {
-    if (appuiSurEnvoi.current) {
-      appuiSurEnvoi.current = false;
-      return;
-    }
-    verifier();
-  }
   // élément à focaliser après le rendu (titre de l'étape ou champ à corriger) ; n relance la demande
   const [focus, setFocus] = useState<{ cible: Cible; n: number } | null>(null);
 
@@ -138,18 +125,14 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     return nomAfficheValide(valeur) ? undefined : libelle("nom_affiche.invalide");
   }
 
-  function continuerNom(evenement: FormEvent<HTMLFormElement>) {
-    evenement.preventDefault();
-    appuiSurEnvoi.current = false;
+  function continuerNom() {
     const erreur = erreurNom(nom);
     if (erreur) return signaler("nom", erreur, 0);
     setErreurs({});
     allerA(1);
   }
 
-  function continuerMotDePasse(evenement: FormEvent<HTMLFormElement>) {
-    evenement.preventDefault();
-    appuiSurEnvoi.current = false;
+  function continuerMotDePasse() {
     const erreur = erreurLongueurMotDePasse(motDePasse);
     if (erreur) return signaler("motDePasse", erreur, 1);
     // vérifiée par le front seul : identity ne reçoit qu'un mot de passe
@@ -158,8 +141,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     allerA(2);
   }
 
-  async function activer(evenement: FormEvent<HTMLFormElement>) {
-    evenement.preventDefault();
+  async function activer() {
     setEnvoiEnCours(true);
     setBandeau(null);
     setErreurs({});
@@ -249,7 +231,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
       </h2>
 
       {etape === 0 ? (
-        <form method="post" onSubmit={continuerNom} noValidate>
+        <Formulaire onSubmit={continuerNom}>
           <Champ
             id="nom_affiche"
             libelle={T.nomAffiche}
@@ -259,14 +241,14 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             autoComplete="name"
             value={nom}
             onChange={(e) => setNom(e.target.value)}
-            onBlur={() => aLaSortie(() => setErreurs({ nom: erreurNom(nom) }))}
+            verifierALaSortie={() => setErreurs({ nom: erreurNom(nom) })}
           />
-          <Bouton onPointerDown={surAppuiEnvoi}>{T.continuer}</Bouton>
-        </form>
+          <Bouton>{T.continuer}</Bouton>
+        </Formulaire>
       ) : null}
 
       {etape === 1 ? (
-        <form method="post" onSubmit={continuerMotDePasse} noValidate>
+        <Formulaire onSubmit={continuerMotDePasse}>
           {/* identifiant du compte pour le gestionnaire de mots de passe, déjà affiché plus haut */}
           <input type="email" name="username" autoComplete="username" value={debut.email} readOnly hidden />
           <ChampMotDePasse
@@ -278,10 +260,8 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             ref={champMotDePasse}
             value={motDePasse}
             onChange={(e) => setMotDePasse(e.target.value)}
-            onBlur={() =>
-              aLaSortie(() =>
-                setErreurs({ motDePasse: motDePasse ? erreurLongueurMotDePasse(motDePasse) : undefined }),
-              )
+            verifierALaSortie={() =>
+              setErreurs({ motDePasse: motDePasse ? erreurLongueurMotDePasse(motDePasse) : undefined })
             }
           />
           <ChampMotDePasse
@@ -296,16 +276,14 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             ref={champConfirmation}
             value={confirmation}
             onChange={(e) => setConfirmation(e.target.value)}
-            onBlur={() =>
-              aLaSortie(() =>
-                setErreurs({
-                  confirmation: confirmation && confirmation !== motDePasse ? TEXTES.motDePasse.differents : undefined,
-                }),
-              )
+            verifierALaSortie={() =>
+              setErreurs({
+                confirmation: confirmation && confirmation !== motDePasse ? TEXTES.motDePasse.differents : undefined,
+              })
             }
           />
-          <Bouton onPointerDown={surAppuiEnvoi}>{T.continuer}</Bouton>
-        </form>
+          <Bouton>{T.continuer}</Bouton>
+        </Formulaire>
       ) : null}
 
       {etape === 2 ? (
@@ -322,7 +300,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
           <CodeQr valeur={debut.uri_otpauth} alt={T.altQr} />
           <p>{T.cleManuelle}</p>
           <CleARecopier groupes={groupes} />
-          <form method="post" onSubmit={activer} noValidate>
+          <Formulaire onSubmit={activer}>
             <Champ
               id="code"
               libelle={T.libelleCode}
@@ -337,7 +315,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
               onChange={(e) => setCode(e.target.value)}
             />
             <Bouton envoiEnCours={envoiEnCours}>{T.bouton}</Bouton>
-          </form>
+          </Formulaire>
         </>
       ) : null}
       {etapePrecedente}

@@ -3,11 +3,12 @@
 // un seul champ ; le lien vers le code de secours suit le champ et son erreur (M4), car code.incorrect les cite.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
 import { BoutonLien } from "@/components/ui/BoutonLien";
 import { Champ } from "@/components/ui/Champ";
+import { Formulaire } from "@/components/ui/Formulaire";
 import { envoyer } from "@/lib/api";
 import { adresseConnexion, cheminDeRetour } from "@/lib/retour";
 import { TEXTES } from "@/textes";
@@ -39,8 +40,7 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
     setErreur(undefined);
   }
 
-  async function soumettre(evenement: FormEvent<HTMLFormElement>) {
-    evenement.preventDefault();
+  async function soumettre() {
     setEnvoiEnCours(true);
     setErreur(undefined);
     setBandeau(null);
@@ -71,7 +71,7 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
       {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
       <h1>{TEXTES.code.titre}</h1>
       <p>{TEXTES.code.consigne}</p>
-      <form method="post" onSubmit={soumettre} noValidate>
+      <Formulaire onSubmit={soumettre}>
         <Champ
           id="code"
           libelle={secours ? TEXTES.code.libelleSecours : TEXTES.code.libelle}
@@ -91,7 +91,7 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
           {secours ? TEXTES.code.utiliserApplication : TEXTES.code.utiliserSecours}
         </BoutonLien>
         <Bouton envoiEnCours={envoiEnCours}>{TEXTES.connexion.bouton}</Bouton>
-      </form>
+      </Formulaire>
       <p>
         <Link href={adresseConnexion(null, retour)}>{TEXTES.code.recommencer}</Link>
       </p>

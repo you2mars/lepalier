@@ -107,6 +107,14 @@ describe("composants et écrans : aucun style propre", () => {
     expect(fautives).toEqual([]);
   });
 
+  it("écrans (src/app) : formulaires par le composant Formulaire, jamais une balise <form> directe", () => {
+    const fautifs = tous
+      .filter((f) => f.startsWith(join(SRC, "app")) && f.endsWith(".tsx") && !f.endsWith(".test.tsx"))
+      .filter((f) => /<form[\s>]/.test(readFileSync(f, "utf8")))
+      .map((f) => relative(SRC, f));
+    expect(fautifs).toEqual([]);
+  });
+
   it("aucun style en ligne (style={…}) dans les composants ni les écrans", () => {
     const fautifs = tous
       .filter((f) => f.endsWith(".tsx") && !f.endsWith(".test.tsx"))

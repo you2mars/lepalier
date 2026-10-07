@@ -4,12 +4,13 @@
 // reste actif ; tant qu'elle n'est pas cochée, le navigateur avertit avant de quitter ou recharger la page. La feuille
 // imprimée (UX-10) n'existe qu'à l'impression.
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bouton } from "@/components/ui/Bouton";
 import { CaseACocher } from "@/components/ui/CaseACocher";
 import { FeuilleImpression, HorsImpression } from "@/components/ui/Impression";
 import { ListeCodes } from "@/components/ui/ListeCodes";
 import { RappelPermanent } from "@/components/ui/RappelPermanent";
+import { Formulaire } from "@/components/ui/Formulaire";
 import { dateEnToutesLettres } from "@/lib/format";
 import { TEXTES } from "@/textes";
 
@@ -40,8 +41,7 @@ export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffi
     return () => window.removeEventListener("beforeunload", retenir);
   }, [notes]);
 
-  function continuer(evenement: FormEvent<HTMLFormElement>) {
-    evenement.preventDefault();
+  function continuer() {
     if (!notes) {
       setErreur(T.caseNonCochee);
       caseRef.current?.focus();
@@ -67,7 +67,7 @@ export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffi
             {T.imprimer}
           </Bouton>
         </p>
-        <form method="post" onSubmit={continuer} noValidate>
+        <Formulaire onSubmit={continuer}>
           <CaseACocher
             id="codes_notes"
             libelle={T.caseNotes}
@@ -80,7 +80,7 @@ export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffi
             }}
           />
           <Bouton>{T.continuer}</Bouton>
-        </form>
+        </Formulaire>
       </HorsImpression>
       <FeuilleImpression>
         <h2>{T.titre}</h2>

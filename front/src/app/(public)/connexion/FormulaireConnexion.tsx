@@ -3,11 +3,12 @@
 // le chemin de retour, contrôlé, suit jusqu'à l'écran du code.
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
 import { Champ } from "@/components/ui/Champ";
 import { ChampMotDePasse } from "@/components/ui/ChampMotDePasse";
+import { Formulaire } from "@/components/ui/Formulaire";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
 import { cheminDeRetour } from "@/lib/retour";
@@ -44,8 +45,7 @@ export function FormulaireConnexion({ motif, retour }: { motif?: string | null; 
   const [bandeau, setBandeau] = useState<Message | null>(bandeauArrivee(motif));
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
-  async function soumettre(evenement: FormEvent<HTMLFormElement>) {
-    evenement.preventDefault();
+  async function soumettre() {
     setEnvoiEnCours(true);
     setErreurMotDePasse(undefined);
     setBandeau(null);
@@ -71,7 +71,7 @@ export function FormulaireConnexion({ motif, retour }: { motif?: string | null; 
       {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
       <h1>{TEXTES.connexion.titre}</h1>
       {/* method="post" : sans JavaScript, le mot de passe ne part jamais dans l'adresse */}
-      <form method="post" onSubmit={soumettre} noValidate>
+      <Formulaire onSubmit={soumettre}>
         <Champ
           id="email"
           libelle={TEXTES.connexion.adresse}
@@ -94,7 +94,7 @@ export function FormulaireConnexion({ motif, retour }: { motif?: string | null; 
           onChange={(e) => setMotDePasse(e.target.value)}
         />
         <Bouton envoiEnCours={envoiEnCours}>{TEXTES.connexion.bouton}</Bouton>
-      </form>
+      </Formulaire>
       <p>
         <Link href="/mot-de-passe-oublie">{TEXTES.connexion.oublie}</Link>
       </p>
