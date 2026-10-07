@@ -893,7 +893,10 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         text=True,
         check=False,
     )
-    assert r.returncode == 0, r.stdout[-6000:] + r.stderr[-2000:]
+    # sortie complète de Playwright, affichée par pytest en cas d'échec : le premier échec n'est jamais coupé
+    print(r.stdout)
+    print(r.stderr)
+    assert r.returncode == 0, "essais Playwright en échec : voir la sortie complète ci-dessus"
 
 
 def test_identity_arrete__accueil_indisponible_sans_deconnexion_puis_retour(plateforme: Plateforme) -> None:

@@ -1,6 +1,7 @@
 // Aides des essais de bout en bout : toute violation de la politique de sécurité (CSP) signalée par le
 // navigateur ou dans la console fait échouer l'essai ; contrôle d'accessibilité axe-core (WCAG 2.1 AA).
 import { createHmac } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
@@ -15,34 +16,24 @@ declare global {
 
 // limite de débit de /api/identity/auth/ : haute dans le projet d'essai (compose.essai.yml), aucun espacement ici ;
 // la vraie limite est vérifiée par N13 (scripts/tests/test_plateforme.py)
-// Sessions enregistrées (storageState) : un compte de l'administration se connecte une seule fois par projet (un
-// travailleur par projet) ; les essais qui ne testent pas la connexion repartent de cette session. Les essais de
-// connexion, de code, d'activation, de l'accueil et de suspension se connectent eux-mêmes.
+// Sessions enregistrées (storageState) : un compte de l'administration se connecte une seule fois par projet ; les
+// essais qui ne testent pas la connexion repartent de cette session. Les essais de connexion, de code, d'activation,
+// de l'accueil et de suspension se connectent eux-mêmes. Session et dernier code TOTP sont gardés dans des fichiers
+// du dossier temporaire du conteneur : Playwright relance son travailleur après un échec, et un nouveau travailleur
+// qui se reconnecterait dans la même fenêtre de 30 s serait refusé (anti-rejeu).
 type RoleAdmin = "gerant" | "associe";
 
-export const test = base.extend<
-  { violationsCsp: string[]; sessionAdmin: RoleAdmin | undefined },
-  { sessionsEnregistrees: Map<string, string> }
->({
+export const test = base.extend<{ violationsCsp: string[]; sessionAdmin: RoleAdmin | undefined }>({
   sessionAdmin: [undefined, { option: true }],
-  sessionsEnregistrees: [
-    // eslint-disable-next-line no-empty-pattern -- fixture sans dépendance (exigence de Playwright)
-    async ({}, utiliser) => {
-      await utiliser(new Map());
-    },
-    { scope: "worker" },
-  ],
-  storageState: async ({ sessionAdmin, sessionsEnregistrees, browser, baseURL, storageState }, utiliser, infos) => {
+  storageState: async ({ sessionAdmin, browser, baseURL, storageState }, utiliser, infos) => {
     if (!sessionAdmin) return utiliser(storageState);
     const compte = compteAdmin(sessionAdmin, infos.project.name);
-    let chemin = sessionsEnregistrees.get(compte.email);
-    if (!chemin) {
+    const chemin = join(tmpdir(), `lepalier-session-${infos.project.name}-${sessionAdmin}.json`);
+    if (!existsSync(chemin)) {
       const contexte = await browser.newContext({ baseURL, ignoreHTTPSErrors: true, locale: "fr-FR" });
       await seConnecter(await contexte.newPage(), compte.email, compte.secret);
-      chemin = join(tmpdir(), `session-${infos.project.name}-${sessionAdmin}.json`);
       await contexte.storageState({ path: chemin });
       await contexte.close();
-      sessionsEnregistrees.set(compte.email, chemin);
     }
     await utiliser(chemin);
   },
@@ -143,16 +134,14 @@ export function compteAdmin(role: "gerant" | "associe", projet: string): CompteC
   return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${role}-${projet}`);
 }
 
-// dernier pas TOTP utilisé par clé : identity refuse deux fois le même code (anti-rejeu), y compris d'un essai à
-// l'autre pour un même compte
-const dernierPas = new Map<string, number>();
-
+// dernier pas TOTP utilisé par clé, gardé dans un fichier (survit à la relance du travailleur) : identity refuse deux
+// fois le même code (anti-rejeu), y compris d'un essai à l'autre pour un même compte
 async function codeNeuf(secretHex: string): Promise<string> {
+  const fichier = join(tmpdir(), `lepalier-totp-${secretHex.slice(0, 16)}.txt`);
+  const dernier = existsSync(fichier) ? Number(readFileSync(fichier, "utf8")) : -1;
   const pas = Math.floor(Date.now() / 30000);
-  if ((dernierPas.get(secretHex) ?? -1) >= pas) {
-    await new Promise((fin) => setTimeout(fin, (pas + 1) * 30000 - Date.now() + 200));
-  }
-  dernierPas.set(secretHex, Math.floor(Date.now() / 30000));
+  if (dernier >= pas) await new Promise((fin) => setTimeout(fin, (pas + 1) * 30000 - Date.now() + 200));
+  writeFileSync(fichier, String(Math.floor(Date.now() / 30000)));
   return codeTotp(secretHex);
 }
 
