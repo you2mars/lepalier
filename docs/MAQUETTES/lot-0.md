@@ -446,8 +446,9 @@ Actions en boutons secondaires ; confirmations récapitulatives (UX-3), au neutr
 - Suspendre : « Suspendre l'accès de Mme Durand ? Ce compte sera déconnecté dans les 10 secondes et ne pourra plus se
   connecter tant que vous n'aurez pas réactivé l'accès. » — [Suspendre l'accès] [Annuler].
 - Réinitialiser : « Réinitialiser l'accès de Mme Durand ? Le mot de passe, les codes de secours et l'application
-  d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours (jusqu'au
-  mardi 13 octobre 2026), sera envoyé à marie.durand@exemple.fr. » — [Réinitialiser l'accès] [Annuler].
+  d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours, sera
+  envoyé à marie.durand@exemple.fr. » (sans date, décision du 7 octobre 2026 : la date exacte vient d'identity
+  dans la fiche relue) — [Réinitialiser l'accès] [Annuler].
 - Annuler l'invitation : « Annuler l'invitation de Mme Durand ? Le lien envoyé à marie.durand@exemple.fr ne
   fonctionnera plus et cette personne disparaîtra de la liste. » — [Annuler l'invitation] [Garder l'invitation].
 - Réactiver, renvoyer l'invitation : sans confirmation (réversibles, sans effet pour un tiers).
