@@ -372,6 +372,8 @@ Utilisateurs
 └──────────────┴───────────────────────────┴──────────┴─────────────────────┴────────────────┘
 ```
 - « Gérer l'accès » **⟦NOUVEAU⟧**, complété pour les lecteurs d'écran d'un texte masqué « de {nom} » (M8).
+- Noms pour les lecteurs d'écran (A1 à A3, 7 octobre 2026) : menu « Menu principal », fil d'Ariane « Fil d'Ariane »,
+  en-tête masqué de la colonne des boutons « Actions ».
 - Statut : `statut_libelle` renvoyé par identity, jamais une couleur seule (UX-14) ; tri par nom.
 - Mobile : une carte par personne (nom, rôle, statut) ; toute la carte est le lien vers la fiche (M8).
 - Chargement : squelette ; erreur : « Information momentanément indisponible ».
@@ -402,11 +404,14 @@ Rôle
 [ Envoyer l'invitation ]   [ Annuler ]                             ← ⟦NOUVEAU⟧ ; « Annuler » (lexique), bouton secondaire
 ```
 - Rôle « Associé » coché par défaut (UX-18).
+- Chaque rôle a une seule description (Q5), écrite une fois dans `front/src/textes.ts` et reprise telle quelle aux
+  boutons radio, dans la confirmation 6.2 et à l'écran 6.4 (7 octobre 2026).
 - Confirmation récapitulative avant l'envoi (UX-3, B2) **⟦NOUVEAU⟧** :
   « Envoyer l'invitation à Mme Durand ?
     Adresse : marie.durand@exemple.fr        ← en grand, sans coupure au milieu
-    Rôle : Associé (consulte tout, exporte et commente ; ne modifie rien)
-    Le lien sera valable 7 jours, jusqu'au mardi 13 octobre 2026. »
+    Rôle : Associé — consulte tout (appartements, baux, loyers, charges, documents, envois), exporte et
+    commente ; ne modifie rien.          ← description unique du rôle, la même qu'aux boutons radio (7 octobre 2026)
+    Le lien sera valable 7 jours. »      ← sans date : la date exacte vient d'identity, dans la fiche 6.3
   Boutons : [Envoyer l'invitation] [Modifier].
 - Erreurs sous les champs : [libellé : utilisateurs.email_invalide], [libellé : utilisateurs.email_deja_utilise],
   [libellé : nom_affiche.invalide].
@@ -423,12 +428,16 @@ Adresse e-mail : marie.durand@exemple.fr
 Rôle : Associé                           [Changer le rôle]         ← ⟦NOUVEAU⟧ → écran 6.4
 Statut : Invitation envoyée
 Invitation envoyée le samedi 3 octobre 2026, valable jusqu'au samedi 10 octobre 2026.   ← ⟦NOUVEAU⟧ ⟦API⟧ (Q6),
+  (invitation expirée : « Invitation envoyée le {date} ; le lien a expiré le {date}. Pour en envoyer un nouveau,
+  touchez « Renvoyer l'invitation ». », 7 octobre 2026)
                                                                       compte invité seulement ; date en toutes lettres
 
 Actions                                                            ← ⟦NOUVEAU⟧
 [ Suspendre l'accès ]          ← si actif, jamais sur sa propre fiche               ⟦NOUVEAU⟧
 [ Réactiver l'accès ]          ← si suspendu                                         ⟦NOUVEAU⟧
 [ Réinitialiser l'accès ]      ← si actif seulement (M6), jamais sur sa propre fiche ⟦NOUVEAU⟧
+Sur sa propre fiche, à la place de ces deux actions (7 octobre 2026) : « Vous ne pouvez ni suspendre ni réinitialiser
+votre propre accès. Si c'est nécessaire, demandez-le à un autre gérant. »
 [ Renvoyer l'invitation ]      ← si invité                                           ⟦NOUVEAU⟧
 [ Annuler l'invitation ]       ← si invité ⟦NOUVEAU⟧ ⟦API⟧ (B2, Q7) ; refus possible :
                                   [libellé : invitation.annulation_impossible] (à valider)
@@ -472,8 +481,11 @@ Confirmations **⟦NOUVEAU⟧** :
   [Annuler].
 - Quitter soi-même le rôle de gérant (obligatoire, note de l'étape 7 du plan) : « Quitter le rôle de gérant ? Vous
   n'aurez plus accès à l'Administration. Un autre gérant pourra vous redonner ce rôle. » — [Quitter le rôle de
-  gérant] [Annuler]. Après l'action : accueil, bandeau « Fait » + « Votre rôle est maintenant Associé.
+  gérant] [Annuler]. Après l'action : accueil, bandeau « Fait » + « Votre rôle est maintenant {rôle} (A8 : Associé
+  ou Opérateur, 7 octobre 2026).
   L'Administration n'est plus accessible depuis ce compte. »
+- « Enregistrer » sans changement (A7, 7 octobre 2026) : retour à la fiche, bandeau « Fait » + « Aucun changement :
+  Mme Durand a déjà le rôle Associé. »
 - Autres changements : sans confirmation. Succès : « Rôle de Mme Durand changé : Opérateur (auparavant Associé). »
 - Refus : [libellé : utilisateurs.dernier_gerant].
 - Recette : R0-04, R0-07. Test e2e : invitation (confirmation comprise), suspension, dernier gérant, changement de
