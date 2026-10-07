@@ -106,6 +106,8 @@ services:
     image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     environment:
       LEPALIER_WIREGUARD: "${LEPALIER_WIREGUARD:-10.8.0.0/24}"
+      # limite de débit de /api/identity/auth/ (ADR 0006, N13) : valeur réelle, toujours écrite ici
+      LEPALIER_LIMITE_AUTH: "10r/m"
       # seules les variables LEPALIER_* sont remplacées dans les gabarits, jamais celles de nginx
       NGINX_ENVSUBST_FILTER: "LEPALIER_"
     volumes:

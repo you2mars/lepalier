@@ -887,9 +887,23 @@ def test_identity_arrete__accueil_indisponible_sans_deconnexion_puis_retour(plat
 def test_nginx__limite_de_debit_sur_auth__429_json(plateforme: Plateforme) -> None:
     """N13 (C9, ADR 0006) : 10 par minute et rafale de 10 : 11 requêtes passent, la 12e reçoit 429.
 
-    Attend d'abord une minute : le compteur de l'adresse de l'essai repart plein.
+    Avec la vraie limite : nginx recréé à partir de compose.dev.yml seul (10r/m), compteurs neufs ; puis remis
+    à la valeur des essais (compose.essai.yml) pour les essais suivants.
     """
-    time.sleep(65)
+    _recreer_nginx(plateforme, valeur_reelle=True)
+    try:
+        _limite_de_debit_reelle(plateforme)
+    finally:
+        _recreer_nginx(plateforme, valeur_reelle=False)
+
+
+def _recreer_nginx(plateforme: Plateforme, valeur_reelle: bool) -> None:
+    attente = ["--wait", "--wait-timeout", "240"]
+    options = ["up", "-d", "--no-build", "--no-deps", "--force-recreate", *attente, "nginx"]
+    plateforme.compose(*options, faux_front=not valeur_reelle)
+
+
+def _limite_de_debit_reelle(plateforme: Plateforme) -> None:
     client = _client(plateforme)
     # une adresse e-mail par requête : le verrou d'identity (5 échecs par compte et adresse IP) ne joue pas
     statuts = [

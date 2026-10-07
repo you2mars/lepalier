@@ -1,3 +1,8 @@
+# Limite de débit de /api/identity/auth/ (ADR 0006, N13) : 10 par minute en vrai (compose.dev.yml, valeur écrite
+# explicitement), plus haute pour les seuls essais de la plateforme (compose.essai.yml) ; aucune valeur par défaut :
+# sans LEPALIER_LIMITE_AUTH, nginx refuse de démarrer.
+limit_req_zone $binary_remote_addr zone=auth:10m rate=${LEPALIER_LIMITE_AUTH};
+
 # Serveur LePalier (dev). ${LEPALIER_WIREGUARD} : sous-réseau WireGuard autorisé sur /ops (valeur définitive au lot 2).
 server {
   listen 443 ssl;

@@ -1,6 +1,10 @@
 # Ajouts au projet d'essai lepalier-essai (make test-plateforme), jamais à la plateforme de dev :
-# un faux front qui renvoie en JSON les en-têtes reçus, pour vérifier ce que nginx lui transmet.
+# un faux front qui renvoie en JSON les en-têtes reçus, pour vérifier ce que nginx lui transmet, et une limite de
+# débit de /api/identity/auth/ haute, pour que les essais n'aient pas à s'espacer ; N13 rejoue la vraie limite.
 services:
+  nginx:
+    environment:
+      LEPALIER_LIMITE_AUTH: "600r/m"
   front:
     image: ghcr.io/you2mars/app-base:latest
     pull_policy: never

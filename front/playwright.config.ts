@@ -7,9 +7,6 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  // envois vers /api/identity/auth/ espacés de 6 secondes (aides.ts) : délais allongés en conséquence
-  timeout: 90_000,
-  expect: { timeout: 15_000 },
   reporter: [["list"]],
   // dans l'image Playwright, le dépôt est en lecture seule : résultats ailleurs
   outputDir: process.env.LEPALIER_E2E_SORTIE ?? "test-results",

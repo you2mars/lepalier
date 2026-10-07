@@ -10,25 +10,9 @@ declare global {
   }
 }
 
-// nginx limite /api/identity/auth/ à 10 requêtes par minute et par adresse, rafale de 10 (N13) ; les deux projets
-// partagent l'adresse 127.0.0.1 et la rafale a pu être consommée par les essais Python juste avant : un envoi
-// toutes les 6 secondes au plus, dès le premier, et la limite n'est jamais atteinte.
-const INTERVALLE_AUTH_MS = 6_000;
-let prochainEnvoiAuth = Date.now() + INTERVALLE_AUTH_MS;
-
-export const test = base.extend<{ violationsCsp: string[]; espacementAuth: void }>({
-  espacementAuth: [
-    async ({ page }, utiliser) => {
-      await page.route("**/api/identity/auth/**", async (route) => {
-        const attente = prochainEnvoiAuth - Date.now();
-        prochainEnvoiAuth = Math.max(Date.now(), prochainEnvoiAuth) + INTERVALLE_AUTH_MS;
-        if (attente > 0) await new Promise((fin) => setTimeout(fin, attente));
-        await route.continue();
-      });
-      await utiliser();
-    },
-    { auto: true },
-  ],
+// limite de débit de /api/identity/auth/ : haute dans le projet d'essai (compose.essai.yml), aucun espacement ici ;
+// la vraie limite est vérifiée par N13 (scripts/tests/test_plateforme.py)
+export const test = base.extend<{ violationsCsp: string[] }>({
   violationsCsp: [
     async ({ page }, utiliser) => {
       const violations: string[] = [];
