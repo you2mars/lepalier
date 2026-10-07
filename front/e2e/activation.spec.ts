@@ -20,6 +20,11 @@ async function continuer(page: Page): Promise<void> {
   await page.getByRole("button", { name: T.continuer }).click();
 }
 
+async function saisirMotsDePasse(page: Page, motDePasse: string, confirmation = motDePasse): Promise<void> {
+  await page.getByLabel(T.motDePasse, { exact: true }).fill(motDePasse);
+  await page.getByLabel(TEXTES.motDePasse.confirmation, { exact: true }).fill(confirmation);
+}
+
 async function cle(page: Page): Promise<string> {
   return (await page.locator(".cle code").textContent()) ?? "";
 }
@@ -63,8 +68,15 @@ test.describe("Activer mon compte", () => {
 
     await continuer(page);
     await expect(titreEtape(page, 1)).toBeFocused();
-    await page.getByLabel(T.motDePasse, { exact: true }).fill(MOT_DE_PASSE);
+    // confirmation différente : message sous le second champ, on reste à l'étape 2
+    await saisirMotsDePasse(page, MOT_DE_PASSE, "le chat dort sur le toit vert");
+    await continuer(page);
+    const confirmation = page.getByLabel(TEXTES.motDePasse.confirmation, { exact: true });
+    await expect(confirmation).toHaveAccessibleDescription(TEXTES.motDePasse.differents);
+    await expect(confirmation).toBeFocused();
     await verifierAccessibilite(page);
+    await sansDefilementHorizontal(page);
+    await saisirMotsDePasse(page, MOT_DE_PASSE);
 
     await continuer(page);
     await expect(titreEtape(page, 2)).toBeFocused();
@@ -84,7 +96,7 @@ test.describe("Activer mon compte", () => {
     await expect(titreEtape(page, 0)).toBeVisible();
     await expect(page.getByText(libelle("invitation.lien_invalide"))).toHaveCount(0);
     await continuer(page);
-    await page.getByLabel(T.motDePasse, { exact: true }).fill(MOT_DE_PASSE);
+    await saisirMotsDePasse(page, MOT_DE_PASSE);
     await continuer(page);
     expect(await cle(page)).toBe(premiereCle);
   });
@@ -95,7 +107,7 @@ test.describe("Activer mon compte", () => {
     await ouvrirLeLien(page, jetonInvitation(infos.project.name));
     await page.getByLabel(T.nomAffiche).fill("M. Essai Activé");
     await continuer(page);
-    await page.getByLabel(T.motDePasse, { exact: true }).fill("le palier du chat noir");
+    await saisirMotsDePasse(page, "le palier du chat noir");
     await continuer(page);
     const secret = base32EnHex(await cle(page));
     await page.getByLabel(T.libelleCode).fill(codeTotp(secret));
@@ -105,8 +117,11 @@ test.describe("Activer mon compte", () => {
     await expect(titreEtape(page, 1)).toBeVisible();
     await expect(motDePasse).toHaveAccessibleDescription(`${T.aideMotDePasse} ${messageMotDePasse("nom_application")}`);
     await expect(motDePasse).toBeFocused();
+    // les deux champs sont à retaper
+    await expect(motDePasse).toHaveValue("");
+    await expect(page.getByLabel(TEXTES.motDePasse.confirmation, { exact: true })).toHaveValue("");
 
-    await motDePasse.fill(MOT_DE_PASSE);
+    await saisirMotsDePasse(page, MOT_DE_PASSE);
     await continuer(page);
     const code = page.getByLabel(T.libelleCode);
     await code.fill(codeFaux(secret));

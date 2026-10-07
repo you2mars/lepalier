@@ -102,3 +102,24 @@ describe("Bouton (UX-22)", () => {
     expect(bouton.className).toContain("secondaire");
   });
 });
+
+describe("ChampMotDePasse : noms accessibles propres (deux champs sur un même écran)", () => {
+  it("le bouton « Afficher » d'un second champ porte son propre nom, lu sans ambiguïté", async () => {
+    render(
+      <ChampMotDePasse
+        id="confirmation"
+        libelle={TEXTES.motDePasse.confirmation}
+        autoComplete="new-password"
+        nomsAccessibles={{
+          afficher: TEXTES.motDePasse.afficherConfirmationAccessible,
+          masquer: TEXTES.motDePasse.masquerConfirmationAccessible,
+        }}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: TEXTES.motDePasse.afficherConfirmationAccessible }));
+    expect(screen.getByRole("button", { name: TEXTES.motDePasse.masquerConfirmationAccessible })).toHaveTextContent(
+      TEXTES.motDePasse.masquer,
+    );
+    expect(screen.getByLabelText(TEXTES.motDePasse.confirmation)).toHaveAttribute("type", "text");
+  });
+});

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { libelle, messageMotDePasse } from "@/lib/libelles";
@@ -39,12 +39,19 @@ function api(...fins: Response[]) {
 const etape = (n: 0 | 1 | 2) => screen.findByRole("heading", { level: 2, name: TEXTES.activation.etapes[n] });
 const continuer = () => userEvent.click(screen.getByRole("button", { name: TEXTES.activation.continuer }));
 
+const champConfirmation = () => screen.getByLabelText(TEXTES.motDePasse.confirmation);
+
+async function saisirMotsDePasse(motDePasse: string, confirmation: string) {
+  await userEvent.type(screen.getByLabelText(TEXTES.activation.motDePasse), motDePasse);
+  if (confirmation) await userEvent.type(champConfirmation(), confirmation);
+}
+
 async function jusquALEtape3(surActivation = vi.fn()) {
   render(<FormulaireActivation surActivation={surActivation} />);
   await etape(0);
   await continuer();
   await etape(1);
-  await userEvent.type(screen.getByLabelText(TEXTES.activation.motDePasse), MOT_DE_PASSE);
+  await saisirMotsDePasse(MOT_DE_PASSE, MOT_DE_PASSE);
   await continuer();
   await etape(2);
   return surActivation;
@@ -151,6 +158,17 @@ describe("Activer mon compte : étape 1, votre nom", () => {
     expect(nom).toHaveAccessibleDescription(`${TEXTES.activation.aideNom} ${libelle("nom_affiche.invalide")}`);
   });
 
+  it("appui sur « Continuer » depuis le nom : aucun message à la sortie, la vérification se fait à l'envoi", async () => {
+    api();
+    render(<FormulaireActivation surActivation={vi.fn()} />);
+    await etape(0);
+    const nom = screen.getByLabelText(TEXTES.activation.nomAffiche);
+    await userEvent.clear(nom);
+    fireEvent.pointerDown(screen.getByRole("button", { name: TEXTES.activation.continuer }));
+    fireEvent.blur(nom);
+    expect(nom).not.toHaveAccessibleDescription(`${TEXTES.activation.aideNom} ${libelle("nom_affiche.invalide")}`);
+  });
+
   it("« Continuer » avec un nom vide : on reste, message, focus sur le champ", async () => {
     api();
     render(<FormulaireActivation surActivation={vi.fn()} />);
@@ -207,6 +225,76 @@ describe("Activer mon compte : étape 2, votre mot de passe", () => {
     await continuer();
     expect(screen.getByLabelText(TEXTES.activation.motDePasse)).toHaveFocus();
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(TEXTES.activation.etapes[1]);
+  });
+
+  it("confirmation : second champ masqué, nouveau mot de passe, son propre bouton « Afficher »", async () => {
+    await jusquALEtape2();
+    const confirmation = champConfirmation();
+    expect(confirmation).toHaveAttribute("type", "password");
+    expect(confirmation).toHaveAttribute("autocomplete", "new-password");
+    expect(
+      screen.getByRole("button", { name: TEXTES.motDePasse.afficherConfirmationAccessible }),
+    ).toBeInTheDocument();
+    // sous le premier champ, dans le même formulaire
+    const motDePasse = screen.getByLabelText(TEXTES.activation.motDePasse);
+    expect(motDePasse.compareDocumentPosition(confirmation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(confirmation.closest("form")).toBe(motDePasse.closest("form"));
+  });
+
+  it("confirmation différente à la sortie du champ : message sous le second champ", async () => {
+    await jusquALEtape2();
+    await saisirMotsDePasse(MOT_DE_PASSE, "le chat dort sur le toi");
+    await userEvent.tab();
+    expect(champConfirmation()).toHaveAccessibleDescription(TEXTES.motDePasse.differents);
+  });
+
+  it.each([
+    ["mot de passe", "le chat", ""],
+    ["confirmation", "le chat dort sur le toit", "autre chose"],
+  ])("appui (souris, doigt) sur « Continuer » depuis le champ %s : aucun message à la sortie (il déplacerait le bouton sous le pointeur), la vérification se fait à l'envoi", async (nom, motDePasse, confirmation) => {
+    await jusquALEtape2();
+    await saisirMotsDePasse(motDePasse, confirmation);
+    const champ = nom === "confirmation" ? champConfirmation() : screen.getByLabelText(TEXTES.activation.motDePasse);
+    expect(champ).toHaveFocus();
+    fireEvent.pointerDown(screen.getByRole("button", { name: TEXTES.activation.continuer }));
+    fireEvent.blur(champ);
+    expect(document.querySelectorAll(".champ-erreur")).toHaveLength(0);
+  });
+
+  it("au clavier (Tab vers « Continuer ») : le message s'affiche bien à la sortie du champ", async () => {
+    await jusquALEtape2();
+    await saisirMotsDePasse(MOT_DE_PASSE, "autre chose");
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(champConfirmation()).toHaveAccessibleDescription(TEXTES.motDePasse.differents);
+  });
+
+  it("confirmation vide à la sortie du champ : aucun message (on ne gronde pas avant la saisie)", async () => {
+    await jusquALEtape2();
+    await userEvent.click(champConfirmation());
+    await userEvent.tab();
+    expect(champConfirmation()).not.toHaveAccessibleDescription(TEXTES.motDePasse.differents);
+  });
+
+  it.each([
+    ["différente", "le chat dort sur le toi"],
+    ["vide", ""],
+  ])("« Continuer » avec une confirmation %s : on reste à l'étape 2, message, curseur dans le second champ", async (_, confirmation) => {
+    await jusquALEtape2();
+    await saisirMotsDePasse(MOT_DE_PASSE, confirmation);
+    await continuer();
+    expect(champConfirmation()).toHaveFocus();
+    expect(champConfirmation()).toHaveAttribute("aria-invalid", "true");
+    expect(champConfirmation()).toHaveAccessibleDescription(TEXTES.motDePasse.differents);
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(TEXTES.activation.etapes[1]);
+  });
+
+  it("premier champ trop court : son message d'abord, même si la confirmation diffère", async () => {
+    await jusquALEtape2();
+    await saisirMotsDePasse("le chat", "autre chose");
+    await continuer();
+    expect(screen.getByLabelText(TEXTES.activation.motDePasse)).toHaveFocus();
+    expect(champConfirmation()).not.toHaveAccessibleDescription(TEXTES.motDePasse.differents);
   });
 
   it("« Étape précédente » : retour à l'étape 1, le nom saisi est gardé", async () => {
@@ -312,7 +400,7 @@ describe("Activer mon compte : envoi final (activation/fin)", () => {
     expect(nom).toHaveFocus();
   });
 
-  it("mot de passe refusé (422) : retour à l'étape 2, message du motif sous le champ, focus", async () => {
+  it("mot de passe refusé (422) : retour à l'étape 2, les deux champs vidés, message du motif, focus", async () => {
     const message = messageMotDePasse("courant");
     api(refus(422, "mot_de_passe_refuse", message, "mot_de_passe"));
     await jusquALEtape3();
@@ -321,6 +409,8 @@ describe("Activer mon compte : envoi final (activation/fin)", () => {
     const champ = screen.getByLabelText(TEXTES.activation.motDePasse);
     expect(champ).toHaveAccessibleDescription(`${TEXTES.activation.aideMotDePasse} ${message}`);
     expect(champ).toHaveFocus();
+    expect(champ).toHaveValue("");
+    expect(champConfirmation()).toHaveValue("");
   });
 
   it("lien devenu invalide (410) : seulement le titre et le message", async () => {

@@ -28,7 +28,7 @@ export type Activee = { etape: string; codes_secours: string[]; nom_affiche: str
 type Etape = 0 | 1 | 2;
 type Message = { etat: EtatBandeau; texte: string };
 type Phase = "chargement" | "sansJeton" | "invalide" | "panne" | "saisie";
-type Cible = "titre" | "nom" | "motDePasse" | "code";
+type Cible = "titre" | "nom" | "motDePasse" | "confirmation" | "code";
 
 function lireJeton(): string | null {
   return window.location.hash.slice(1) || null;
@@ -44,6 +44,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
   const titreEtape = useRef<HTMLHeadingElement>(null);
   const champNom = useRef<HTMLInputElement>(null);
   const champMotDePasse = useRef<HTMLInputElement>(null);
+  const champConfirmation = useRef<HTMLInputElement>(null);
   const champCode = useRef<HTMLInputElement>(null);
 
   const [phase, setPhase] = useState<Phase>("chargement");
@@ -51,10 +52,27 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
   const [etape, setEtape] = useState<Etape>(0);
   const [nom, setNom] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [code, setCode] = useState("");
-  const [erreurs, setErreurs] = useState<{ nom?: string; motDePasse?: string; code?: string }>({});
+  const [erreurs, setErreurs] = useState<{ nom?: string; motDePasse?: string; confirmation?: string; code?: string }>(
+    {},
+  );
   const [bandeau, setBandeau] = useState<Message | null>(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  // Appui (souris, doigt) sur le bouton d'envoi : la sortie du champ qui suit ne vérifie rien, l'envoi le fera. Un
+  // message affiché entre l'appui et le relâchement déplacerait le bouton et le clic serait perdu. Au clavier, la
+  // vérification à la sortie du champ reste entière.
+  const appuiSurEnvoi = useRef(false);
+  const surAppuiEnvoi = () => {
+    appuiSurEnvoi.current = true;
+  };
+  function aLaSortie(verifier: () => void) {
+    if (appuiSurEnvoi.current) {
+      appuiSurEnvoi.current = false;
+      return;
+    }
+    verifier();
+  }
   // élément à focaliser après le rendu (titre de l'étape ou champ à corriger) ; n relance la demande
   const [focus, setFocus] = useState<{ cible: Cible; n: number } | null>(null);
 
@@ -88,7 +106,13 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
 
   useEffect(() => {
     if (!focus) return;
-    const refs = { titre: titreEtape, nom: champNom, motDePasse: champMotDePasse, code: champCode };
+    const refs = {
+      titre: titreEtape,
+      nom: champNom,
+      motDePasse: champMotDePasse,
+      confirmation: champConfirmation,
+      code: champCode,
+    };
     refs[focus.cible].current?.focus();
   }, [focus]);
 
@@ -104,7 +128,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
   }
 
   // erreur d'un champ : retour à son étape, message sous le champ, focus dessus
-  function signaler(champ: "nom" | "motDePasse" | "code", message: string, aEtape: Etape) {
+  function signaler(champ: Exclude<Cible, "titre">, message: string, aEtape: Etape) {
     setEtape(aEtape);
     setErreurs({ [champ]: message });
     focaliser(champ);
@@ -116,6 +140,7 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
 
   function continuerNom(evenement: FormEvent<HTMLFormElement>) {
     evenement.preventDefault();
+    appuiSurEnvoi.current = false;
     const erreur = erreurNom(nom);
     if (erreur) return signaler("nom", erreur, 0);
     setErreurs({});
@@ -124,8 +149,11 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
 
   function continuerMotDePasse(evenement: FormEvent<HTMLFormElement>) {
     evenement.preventDefault();
+    appuiSurEnvoi.current = false;
     const erreur = erreurLongueurMotDePasse(motDePasse);
     if (erreur) return signaler("motDePasse", erreur, 1);
+    // vérifiée par le front seul : identity ne reçoit qu'un mot de passe
+    if (confirmation !== motDePasse) return signaler("confirmation", TEXTES.motDePasse.differents, 1);
     setErreurs({});
     allerA(2);
   }
@@ -157,6 +185,9 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     } else if (statut === 422 && erreur.champs.nom_affiche) {
       signaler("nom", erreur.champs.nom_affiche, 0);
     } else if (statut === 422 && erreur.champs.mot_de_passe) {
+      // mot de passe refusé par identity : les deux champs sont à retaper
+      setMotDePasse("");
+      setConfirmation("");
       signaler("motDePasse", erreur.champs.mot_de_passe, 1);
     } else if (statut === 400 && erreur.code === "code_incorrect") {
       setCode("");
@@ -228,9 +259,9 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             autoComplete="name"
             value={nom}
             onChange={(e) => setNom(e.target.value)}
-            onBlur={() => setErreurs({ nom: erreurNom(nom) })}
+            onBlur={() => aLaSortie(() => setErreurs({ nom: erreurNom(nom) }))}
           />
-          <Bouton>{T.continuer}</Bouton>
+          <Bouton onPointerDown={surAppuiEnvoi}>{T.continuer}</Bouton>
         </form>
       ) : null}
 
@@ -247,9 +278,33 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             ref={champMotDePasse}
             value={motDePasse}
             onChange={(e) => setMotDePasse(e.target.value)}
-            onBlur={() => setErreurs({ motDePasse: motDePasse ? erreurLongueurMotDePasse(motDePasse) : undefined })}
+            onBlur={() =>
+              aLaSortie(() =>
+                setErreurs({ motDePasse: motDePasse ? erreurLongueurMotDePasse(motDePasse) : undefined }),
+              )
+            }
           />
-          <Bouton>{T.continuer}</Bouton>
+          <ChampMotDePasse
+            id="confirmation_mot_de_passe"
+            libelle={TEXTES.motDePasse.confirmation}
+            erreur={erreurs.confirmation}
+            autoComplete="new-password"
+            nomsAccessibles={{
+              afficher: TEXTES.motDePasse.afficherConfirmationAccessible,
+              masquer: TEXTES.motDePasse.masquerConfirmationAccessible,
+            }}
+            ref={champConfirmation}
+            value={confirmation}
+            onChange={(e) => setConfirmation(e.target.value)}
+            onBlur={() =>
+              aLaSortie(() =>
+                setErreurs({
+                  confirmation: confirmation && confirmation !== motDePasse ? TEXTES.motDePasse.differents : undefined,
+                }),
+              )
+            }
+          />
+          <Bouton onPointerDown={surAppuiEnvoi}>{T.continuer}</Bouton>
         </form>
       ) : null}
 

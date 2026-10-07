@@ -10,6 +10,11 @@ export const TEXTES = {
     masquer: "Masquer",
     afficherAccessible: "Afficher le mot de passe",
     masquerAccessible: "Masquer le mot de passe",
+    // confirmation à la création et au changement (décision du 6 octobre 2026)
+    confirmation: "Confirmez le mot de passe",
+    differents: "Les deux mots de passe ne sont pas identiques. Tapez le même dans les deux champs.",
+    afficherConfirmationAccessible: "Afficher la confirmation du mot de passe",
+    masquerConfirmationAccessible: "Masquer la confirmation du mot de passe",
   },
   connexion: {
     titre: "Se connecter",

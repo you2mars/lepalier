@@ -166,6 +166,7 @@ describe("Activer mon compte puis codes de secours (même page, codes en mémoir
     render(<Activation />);
     await userEvent.click(await screen.findByRole("button", { name: TEXTES.activation.continuer }));
     await userEvent.type(screen.getByLabelText(TEXTES.activation.motDePasse), "le chat dort sur le toit");
+    await userEvent.type(screen.getByLabelText(TEXTES.motDePasse.confirmation), "le chat dort sur le toit");
     await userEvent.click(screen.getByRole("button", { name: TEXTES.activation.continuer }));
     await userEvent.type(screen.getByLabelText(TEXTES.activation.libelleCode), "123456");
     await userEvent.click(screen.getByRole("button", { name: TEXTES.activation.bouton }));
