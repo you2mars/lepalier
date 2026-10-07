@@ -475,7 +475,7 @@ print(*codes)
 INVITER = """
 from app.admin import creer_gerant
 from app.db import fabrique
-print(creer_gerant(fabrique(), "{email}", "M. Essai", "https://essai.invalide").rsplit("#", 1)[1].strip())
+print(creer_gerant(fabrique(), "{email}", "{nom}", "https://essai.invalide").rsplit("#", 1)[1].strip())
 """
 # un compte par projet Playwright (front/playwright.config.ts) : l'anti-rejeu refuse deux fois un même code
 PROJETS_PLAYWRIGHT = ("ordinateur", "mobile-360")
@@ -820,9 +820,28 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
             email = f"e2e-admin-{role}-{projet}@essai.local"
             _, secret = _creer_compte(plateforme, email, role=role, nom=nom)
             comptes_admin[f"{role}-{projet}"] = {"email": email, "secret": secret, "secours": [], "nom": nom}
+        # comptes visés par les actions de la fiche « Gérer l'accès » (6.3) : un associé actif, une invitation
+        cible = f"Mme Cible {projet}"
+        _creer_compte(plateforme, f"e2e-cible-{projet}@essai.local", role="associe", nom=cible)
+        comptes_admin[f"cible-{projet}"] = {
+            "email": f"e2e-cible-{projet}@essai.local",
+            "secret": "",
+            "secours": [],
+            "nom": cible,
+        }
+        invitee = f"M. Invité {projet}"
+        plateforme.python(INVITER.format(email=f"e2e-invite-{projet}@essai.local", nom=invitee))
+        comptes_admin[f"invite-{projet}"] = {
+            "email": f"e2e-invite-{projet}@essai.local",
+            "secret": "",
+            "secours": [],
+            "nom": invitee,
+        }
     # une invitation par projet : l'activation la consomme
     invitations = {
-        projet: plateforme.python(INVITER.format(email=f"e2e-activation-{projet}@essai.local")).stdout.strip()
+        projet: plateforme.python(
+            INVITER.format(email=f"e2e-activation-{projet}@essai.local", nom="M. Essai")
+        ).stdout.strip()
         for projet in PROJETS_PLAYWRIGHT
     }
     plateforme.compose(

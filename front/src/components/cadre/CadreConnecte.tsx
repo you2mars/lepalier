@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Personne } from "@/lib/session";
 import { TEXTES } from "@/textes";
 import { Menu } from "./Menu";
+import { MessageFlashProvider } from "./MessageFlash";
 import { SeDeconnecter } from "./SeDeconnecter";
 
 export function CadreConnecte({ personne, children }: { personne: Personne; children: ReactNode }) {
@@ -19,7 +20,7 @@ export function CadreConnecte({ personne, children }: { personne: Personne; chil
       </header>
       <Menu role={personne.role} />
       <main id="contenu" className="contenu-connecte" tabIndex={-1}>
-        {children}
+        <MessageFlashProvider>{children}</MessageFlashProvider>
       </main>
     </div>
   );

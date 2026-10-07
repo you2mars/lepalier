@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MessageFlashProvider } from "@/components/cadre/MessageFlash";
 import type { Personne } from "@/lib/session";
 import { TEXTES } from "@/textes";
 import Page, { metadata } from "./page";
@@ -41,6 +42,7 @@ const UTILISATEURS = [
 
 let personne: Personne | null = GERANT;
 const lireConnecte = vi.fn();
+vi.mock("next/navigation", () => ({ usePathname: () => "/administration/utilisateurs" }));
 vi.mock("@/lib/session", () => ({
   personneConnectee: async () => personne,
   lireConnecte: (chemin: string) => lireConnecte(chemin),
@@ -163,5 +165,22 @@ describe("Après une invitation : la liste dit ce qui a été fait (UX-4, UX-24)
   it("identifiant inconnu : aucun bandeau", async () => {
     const { container } = render(await Page({ searchParams: Promise.resolve({ invitee: "autre" }) }));
     expect(container.querySelector(".bandeau")).toBeNull();
+  });
+});
+
+describe("Après l'annulation d'une invitation : message laissé par la fiche (mémoire de la page, ni adresse ni stockage)", () => {
+  it("bandeau « Fait » sur la page d'arrivée, même si le bandeau est monté deux fois", async () => {
+    const message = { etat: "fait" as const, texte: "Invitation de Mme Durand annulée.", pour: "/administration/utilisateurs" };
+    const contenu = await Page({ searchParams: Promise.resolve({}) });
+    const { rerender } = render(<MessageFlashProvider initial={message}>{contenu}</MessageFlashProvider>);
+    expect(screen.getByRole("status")).toHaveTextContent("Invitation de Mme Durand annulée.");
+    rerender(<MessageFlashProvider initial={message}>{await Page({ searchParams: Promise.resolve({}) })}</MessageFlashProvider>);
+    expect(screen.getByRole("status")).toHaveTextContent("Invitation de Mme Durand annulée.");
+  });
+
+  it("message annoncé pour une autre page : rien ici", async () => {
+    const message = { etat: "fait" as const, texte: "Autre.", pour: "/ailleurs" };
+    render(<MessageFlashProvider initial={message}>{await Page({ searchParams: Promise.resolve({}) })}</MessageFlashProvider>);
+    expect(screen.queryByRole("status")).toBeNull();
   });
 });

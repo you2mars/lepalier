@@ -156,6 +156,11 @@ async function codeNeuf(secretHex: string): Promise<string> {
   return codeTotp(secretHex);
 }
 
+// comptes visés par les actions de la fiche « Gérer l'accès » (6.3) : associé actif ou invitation, un par projet
+export function compteVise(genre: "cible" | "invite", projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${genre}-${projet}`);
+}
+
 // connexion complète : adresse, mot de passe (MOT_DE_PASSE de l'essai), puis code de l'application
 export async function seConnecter(page: Page, email: string, secretHex: string): Promise<void> {
   await page.goto("/connexion");

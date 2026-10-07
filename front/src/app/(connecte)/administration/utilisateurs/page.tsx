@@ -1,6 +1,7 @@
 // Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04) : liste des personnes, triée par nom par identity,
 // statut en mots ; « Inviter une personne » en bouton principal ; réservée au gérant (écran 7 sinon).
 import type { Metadata } from "next";
+import { BandeauFlash } from "@/components/cadre/MessageFlash";
 import { PageReservee } from "@/components/cadre/PageReservee";
 import { Bandeau } from "@/components/ui/Bandeau";
 import { FilAriane } from "@/components/ui/FilAriane";
@@ -50,6 +51,7 @@ export default async function Page({ searchParams }: { searchParams: Parametres 
 
   return (
     <>
+      <BandeauFlash />
       {nouvelle ? (
         <Bandeau
           etat="fait"

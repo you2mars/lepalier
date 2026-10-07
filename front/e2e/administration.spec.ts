@@ -2,10 +2,11 @@
 // R0-20 à R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant et un associé par projet.
 import { libelle } from "../src/lib/libelles";
 import { TEXTES } from "../src/textes";
-import { compteAdmin, expect, sansDefilementHorizontal, test, verifierAccessibilite } from "./aides";
+import { compteAdmin, compteVise, expect, sansDefilementHorizontal, test, verifierAccessibilite } from "./aides";
 
 const L = TEXTES.utilisateurs.liste;
 const I = TEXTES.utilisateurs.inviter;
+const F = TEXTES.utilisateurs.fiche;
 
 test.describe("Administration › Utilisateurs, gérant", () => {
   test.use({ sessionAdmin: "gerant" });
@@ -90,6 +91,68 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     await expect(champ).toBeFocused();
   });
 
+
+  test("sa propre fiche : ni suspendre ni réinitialiser, la phrase qui explique ; accessibilité (6.3)", async ({
+    page,
+  }, infos) => {
+    const moi = compteAdmin("gerant", infos.project.name);
+    await page.goto("/administration/utilisateurs");
+    await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${moi.nom}` }).first().click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Accès de ${moi.nom}`);
+    await expect(page.getByText(F.soiMeme)).toBeVisible();
+    await expect(page.getByRole("button", { name: F.suspendre.bouton })).toHaveCount(0);
+    await verifierAccessibilite(page);
+    await sansDefilementHorizontal(page);
+  });
+
+  test("associé actif : suspendre (confirmation), réactiver, réinitialiser (confirmation) (6.3, R0-07)", async ({
+    page,
+  }, infos) => {
+    const cible = compteVise("cible", infos.project.name);
+    await page.goto("/administration/utilisateurs");
+    await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${cible.nom}` }).first().click();
+    await expect(page.getByText("Statut : Accès actif")).toBeVisible();
+
+    await page.getByRole("button", { name: F.suspendre.bouton }).click();
+    const boite = page.getByRole("dialog", { name: `Suspendre l'accès de ${cible.nom} ?` });
+    await expect(boite.getByRole("button", { name: F.annuler })).toBeFocused();
+    await verifierAccessibilite(page);
+    await boite.getByRole("button", { name: F.suspendre.bouton }).click();
+    await expect(page.getByRole("status")).toContainText(`Accès de ${cible.nom} suspendu.`);
+    await expect(page.getByText("Statut : Accès suspendu")).toBeVisible();
+
+    await page.getByRole("button", { name: F.reactiver.bouton }).click();
+    await expect(page.getByRole("status")).toContainText(`Accès de ${cible.nom} réactivé.`);
+    await expect(page.getByText("Statut : Accès actif")).toBeVisible();
+
+    await page.getByRole("button", { name: F.reinitialiser.bouton }).click();
+    const reinit = page.getByRole("dialog", { name: `Réinitialiser l'accès de ${cible.nom} ?` });
+    await expect(reinit).toContainText(`sera envoyé à ${cible.email}.`);
+    await reinit.getByRole("button", { name: F.reinitialiser.bouton }).click();
+    await expect(page.getByRole("status")).toContainText(`Accès de ${cible.nom} réinitialisé ; un e-mail lui a été envoyé.`);
+    // l'accès réinitialisé repart d'une invitation (ADR 0006)
+    await expect(page.getByText("Statut : Invitation envoyée")).toBeVisible();
+  });
+
+  test("invitation : renvoyer, puis annuler (« Garder l'invitation » en premier) ; la liste dit ce qui a été fait (6.3)", async ({
+    page,
+  }, infos) => {
+    const invite = compteVise("invite", infos.project.name);
+    await page.goto("/administration/utilisateurs");
+    await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${invite.nom}` }).first().click();
+    await expect(page.getByText(/^Invitation envoyée le .+, valable jusqu'au .+\.$/)).toBeVisible();
+
+    await page.getByRole("button", { name: F.renvoyer.bouton }).click();
+    await expect(page.getByRole("status")).toContainText(`Invitation renvoyée à ${invite.nom} (${invite.email}).`);
+
+    await page.getByRole("button", { name: F.annulerInvitation.bouton }).click();
+    const boite = page.getByRole("dialog", { name: `Annuler l'invitation de ${invite.nom} ?` });
+    await expect(boite.getByRole("button", { name: F.annulerInvitation.garder })).toBeFocused();
+    await boite.getByRole("button", { name: F.annulerInvitation.bouton }).click();
+    await expect(page).toHaveURL(/\/administration\/utilisateurs$/);
+    await expect(page.getByRole("status")).toContainText(`Invitation de ${invite.nom} annulée.`);
+    await expect(page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${invite.nom}` })).toHaveCount(0);
+  });
 });
 
 test.describe("Administration › Utilisateurs, associé", () => {

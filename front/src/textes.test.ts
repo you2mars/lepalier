@@ -166,6 +166,47 @@ describe("textes du front", () => {
       },
       succes: "Invitation envoyée à {nom} ({adresse}). Le lien est valable 7 jours.",
     });
+    expect(TEXTES.utilisateurs.fiche).toEqual({
+      titre: "Accès de {nom}",
+      adresse: "Adresse e-mail : {adresse}",
+      role: "Rôle : {role}",
+      changerRole: "Changer le rôle",
+      statut: "Statut : {statut}",
+      invitationValable: "Invitation envoyée le {envoi}, valable jusqu'au {fin}.",
+      invitationExpiree:
+        "Invitation envoyée le {envoi} ; le lien a expiré le {fin}. Pour en envoyer un nouveau, touchez « Renvoyer l'invitation ».",
+      actions: "Actions",
+      soiMeme:
+        "Vous ne pouvez ni suspendre ni réinitialiser votre propre accès. Si c'est nécessaire, demandez-le à un autre gérant.",
+      annuler: "Annuler",
+      suspendre: {
+        bouton: "Suspendre l'accès",
+        question: "Suspendre l'accès de {nom} ?",
+        explication:
+          "Ce compte sera déconnecté dans les 10 secondes et ne pourra plus se connecter tant que vous n'aurez pas réactivé l'accès.",
+        succes: "Accès de {nom} suspendu.",
+      },
+      reactiver: { bouton: "Réactiver l'accès", succes: "Accès de {nom} réactivé." },
+      reinitialiser: {
+        bouton: "Réinitialiser l'accès",
+        question: "Réinitialiser l'accès de {nom} ?",
+        explication:
+          "Le mot de passe, les codes de secours et l'application d'authentification de ce compte ne fonctionneront plus. Un e-mail avec un nouveau lien, valable 7 jours (jusqu'au {fin}), sera envoyé à {adresse}.",
+        succes: "Accès de {nom} réinitialisé ; un e-mail lui a été envoyé.",
+      },
+      renvoyer: {
+        bouton: "Renvoyer l'invitation",
+        succes:
+          "Invitation renvoyée à {nom} ({adresse}). Le nouveau lien est valable 7 jours ; l'ancien ne fonctionne plus.",
+      },
+      annulerInvitation: {
+        bouton: "Annuler l'invitation",
+        question: "Annuler l'invitation de {nom} ?",
+        explication: "Le lien envoyé à {adresse} ne fonctionnera plus et cette personne disparaîtra de la liste.",
+        garder: "Garder l'invitation",
+        succes: "Invitation de {nom} annulée.",
+      },
+    });
     expect(TEXTES.reservee).toEqual({
       titre: "Page réservée au gérant",
       reservee: "Cette page est réservée au gérant.",
