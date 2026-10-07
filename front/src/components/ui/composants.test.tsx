@@ -8,11 +8,14 @@ import { CodeQr } from "./CodeQr";
 import { Depliant } from "./Depliant";
 import { Encadre } from "./Encadre";
 import { EtatVide } from "./EtatVide";
+import { FilAriane } from "./FilAriane";
 import { FeuilleImpression, HorsImpression } from "./Impression";
 import { LienBouton } from "./LienBouton";
 import { ListeCodes } from "./ListeCodes";
 import { RappelPermanent } from "./RappelPermanent";
 import { Squelette } from "./Squelette";
+import { TableauResponsive } from "./TableauResponsive";
+import { TexteMasque } from "./TexteMasque";
 
 // Composants du design system minimal (UX_CHARTE § 9) : les écrans n'ont pas de style propre (front/CLAUDE.md).
 describe("Encadre et Depliant", () => {
@@ -50,6 +53,15 @@ describe("BoutonLien et LienBouton", () => {
     expect(container.querySelector(".action-sous-champ")).toContainElement(bouton);
     await userEvent.click(bouton);
     expect(action.mock.calls).toEqual([["clic"]]);
+  });
+
+  it("LienBouton principal : lien présenté comme le bouton principal de l'écran", () => {
+    render(
+      <LienBouton href="/administration/utilisateurs/inviter" variante="principal">
+        Inviter une personne
+      </LienBouton>,
+    );
+    expect(screen.getByRole("link", { name: "Inviter une personne" })).toHaveClass("bouton", "bouton-principal");
   });
 
   it("LienBouton : lien présenté comme un bouton secondaire", () => {
@@ -137,5 +149,65 @@ describe("FeuilleImpression et HorsImpression (UX-10)", () => {
     expect(feuille).toHaveAttribute("aria-hidden", "true");
     expect(feuille.firstElementChild).toHaveTextContent(TEXTES.application);
     expect(container.querySelector(".ecran-seul")).toContainElement(screen.getByRole("heading", { level: 1 }));
+  });
+});
+
+describe("TexteMasque", () => {
+  it("lu par les lecteurs d'écran, invisible à l'écran", () => {
+    render(
+      <a href="/x">
+        Gérer l'accès <TexteMasque>de Mme Durand</TexteMasque>
+      </a>,
+    );
+    expect(screen.getByRole("link", { name: "Gérer l'accès de Mme Durand" })).toBeInTheDocument();
+    expect(screen.getByText("de Mme Durand", { exact: false })).toHaveClass("masque-visuellement");
+  });
+});
+
+describe("FilAriane (UX-9)", () => {
+  it("navigation nommée, étapes dans l'ordre ; liens seulement là où une page existe ; page en cours signalée", () => {
+    render(
+      <FilAriane
+        etapes={[
+          { libelle: "Administration" },
+          { libelle: "Utilisateurs", href: "/administration/utilisateurs" },
+          { libelle: "Inviter" },
+        ]}
+      />,
+    );
+    const fil = screen.getByRole("navigation", { name: TEXTES.cadre.filAriane });
+    const elements = within(fil).getAllByRole("listitem");
+    expect(elements.map((e) => e.textContent)).toEqual(["Administration", "Utilisateurs", "Inviter"]);
+    expect(within(elements[0]!).queryByRole("link")).toBeNull();
+    expect(within(elements[1]!).getByRole("link")).toHaveAttribute("href", "/administration/utilisateurs");
+    expect(within(elements[2]!).getByText("Inviter")).toHaveAttribute("aria-current", "page");
+  });
+});
+
+describe("TableauResponsive (UX-26)", () => {
+  const COLONNES = [{ titre: "Nom" }, { titre: "Statut" }, { titre: "Actions", masque: true }];
+  const LIGNES = [
+    {
+      cle: "1",
+      cellules: ["Mme Durand", "Accès actif", <a key="a" href="/fiche/1">Gérer</a>],
+      carte: { href: "/fiche/1", nom: "Gérer l'accès de Mme Durand", contenu: ["Mme Durand", "Accès actif"] },
+    },
+  ];
+
+  it("ordinateur : tableau nommé, en-têtes de colonnes, en-tête des boutons masqué mais lu", () => {
+    render(<TableauResponsive libelle="Utilisateurs" colonnes={COLONNES} lignes={LIGNES} />);
+    const tableau = screen.getByRole("table", { name: "Utilisateurs" });
+    const entetes = within(tableau).getAllByRole("columnheader");
+    expect(entetes.map((e) => e.textContent)).toEqual(["Nom", "Statut", "Actions"]);
+    expect(within(entetes[2]!).getByText("Actions")).toHaveClass("masque-visuellement");
+    expect(within(tableau).getAllByRole("row")).toHaveLength(2);
+  });
+
+  it("mobile : une carte par ligne, toute la carte est un lien nommé", () => {
+    const { container } = render(<TableauResponsive libelle="Utilisateurs" colonnes={COLONNES} lignes={LIGNES} />);
+    const cartes = container.querySelector(".cartes")!;
+    const lien = within(cartes as HTMLElement).getByRole("link", { name: "Gérer l'accès de Mme Durand" });
+    expect(lien).toHaveAttribute("href", "/fiche/1");
+    expect(lien).toHaveTextContent("Mme Durand");
   });
 });

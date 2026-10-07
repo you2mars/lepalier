@@ -448,7 +448,7 @@ cles = charger_cles(settings.secrets_dir)
 uid, secret = uuid7(), totp.nouveau_secret()
 with fabrique()() as s, s.begin():
     s.execute(insert(UTILISATEUR).values(
-        id=uid, email="{email}", nom_affiche="M. Essai", role="gerant", statut="actif",
+        id=uid, email="{email}", nom_affiche="{nom}", role="{role}", statut="actif",
         origine="commande_locale", mot_de_passe_hache=mot_de_passe.hacher("{mdp}"),
         totp_secret_chiffre=chiffrer(secret, cles.chiffrement, uid.bytes),
     ))
@@ -481,6 +481,15 @@ print(creer_gerant(fabrique(), "{email}", "M. Essai", "https://essai.invalide").
 PROJETS_PLAYWRIGHT = ("ordinateur", "mobile-360")
 
 
+def _creer_compte(
+    plateforme: Plateforme, email: str, role: str = "gerant", nom: str = "M. Essai"
+) -> tuple[str, str]:
+    """Compte actif (mot de passe MOT_DE_PASSE) : (identifiant, clé TOTP en hexadécimal)."""
+    code = CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE, role=role, nom=nom)
+    uid, secret = plateforme.python(code).stdout.split()
+    return uid, secret
+
+
 def _code_totp(secret: bytes) -> str:
     """RFC 6238 (SHA-1, 6 chiffres, 30 s), comme les applications d'authentification."""
     empreinte = hmac.new(secret, struct.pack(">Q", int(time.time() // 30)), hashlib.sha1).digest()
@@ -508,7 +517,7 @@ def session(plateforme: Plateforme) -> Iterator[Session]:
 
 def _connecter(plateforme: Plateforme, email: str) -> Session:
     """Nouveau gérant, connecté à travers nginx (adresse, mot de passe puis code)."""
-    uid, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
+    uid, secret = _creer_compte(plateforme, email)
     client = _client(plateforme)
     connexion = {"email": email, "mot_de_passe": MOT_DE_PASSE}
     assert client.post("/api/identity/auth/connexion", json=connexion).status_code == 200
@@ -790,19 +799,27 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
     assert (RACINE / "front" / "node_modules" / "@playwright" / "test").is_dir(), (
         "Dépendances du front absentes : lancez « cd front && npm ci » avant make test-plateforme."
     )
-    plateforme.python(CREER_COMPTE.format(email="e2e@essai.local", mdp=MOT_DE_PASSE))
+    _creer_compte(plateforme, "e2e@essai.local")
     comptes_code = {}
     for projet in PROJETS_PLAYWRIGHT:
         email = f"e2e-code-{projet}@essai.local"
-        uid, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
+        uid, secret = _creer_compte(plateforme, email)
         secours = plateforme.python(AJOUTER_CODES_SECOURS.format(uid=uid)).stdout.split()
         comptes_code[projet] = {"email": email, "secret": secret, "secours": secours}
     # un gérant par projet pour l'accueil (connexion complète, puis déconnexion)
     comptes_accueil = {}
     for projet in PROJETS_PLAYWRIGHT:
         email = f"e2e-accueil-{projet}@essai.local"
-        _, secret = plateforme.python(CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE)).stdout.split()
+        _, secret = _creer_compte(plateforme, email)
         comptes_accueil[projet] = {"email": email, "secret": secret, "secours": []}
+    # administration : un gérant et un associé par projet
+    comptes_admin = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        # noms distincts d'un projet à l'autre : tous les comptes apparaissent dans la même liste
+        for role, nom in [("gerant", f"M. Gérant {projet}"), ("associe", f"Mme Associée {projet}")]:
+            email = f"e2e-admin-{role}-{projet}@essai.local"
+            _, secret = _creer_compte(plateforme, email, role=role, nom=nom)
+            comptes_admin[f"{role}-{projet}"] = {"email": email, "secret": secret, "secours": [], "nom": nom}
     # une invitation par projet : l'activation la consomme
     invitations = {
         projet: plateforme.python(INVITER.format(email=f"e2e-activation-{projet}@essai.local")).stdout.strip()
@@ -828,6 +845,7 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_COMPTES_CODE": json.dumps(comptes_code),
         "LEPALIER_E2E_INVITATIONS": json.dumps(invitations),
         "LEPALIER_E2E_COMPTES_ACCUEIL": json.dumps(comptes_accueil),
+        "LEPALIER_E2E_COMPTES_ADMIN": json.dumps(comptes_admin),
         # dossiers du conteneur Playwright, pas de l'hôte
         "LEPALIER_E2E_SORTIE": "/tmp/resultats",  # noqa: S108
         "HOME": "/tmp",  # noqa: S108

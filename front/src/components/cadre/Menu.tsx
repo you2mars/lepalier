@@ -19,7 +19,7 @@ const ENTREES = [
 export function Menu({ role }: { role: Role }) {
   const chemin = usePathname();
   return (
-    <nav className="menu">
+    <nav className="menu" aria-label={TEXTES.cadre.menuPrincipal}>
       <ul>
         {ENTREES.filter((e) => (e.roles as readonly string[]).includes(role)).map((e) => {
           const courante = e.prefixe ? chemin === e.prefixe || chemin.startsWith(`${e.prefixe}/`) : chemin === e.href;

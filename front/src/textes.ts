@@ -95,8 +95,36 @@ export const TEXTES = {
     seDeconnecter: "Se déconnecter",
     aFaire: "À faire",
     administration: "Administration",
+    // noms pour les lecteurs d'écran des deux zones de navigation (A1, A2 du 7 octobre 2026)
+    menuPrincipal: "Menu principal",
+    filAriane: "Fil d'Ariane",
   },
   roles: { gerant: "Gérant", associe: "Associé", operateur: "Opérateur" },
+  // une seule description par rôle (Q5), reprise telle quelle aux boutons radio, en confirmation et au changement de rôle
+  descriptionsRoles: {
+    associe:
+      "consulte tout (appartements, baux, loyers, charges, documents, envois), exporte et commente ; ne modifie rien",
+    operateur:
+      "saisit les relevés d'eau, les paiements, les factures et les pièces, et prépare les quittances et les avis ; ni bail, ni envoi recommandé",
+    gerant: "gère tout, y compris les utilisateurs",
+  },
+  // Administration › Utilisateurs (maquettes v3, écrans 6.1 à 6.4)
+  utilisateurs: {
+    liste: {
+      titre: "Utilisateurs",
+      inviter: "Inviter une personne",
+      gererAcces: "Gérer l'accès",
+      // complété « de {nom} » pour les lecteurs d'écran (M8)
+      gererAccesDe: "de",
+      colonnes: { nom: "Nom", adresse: "Adresse e-mail", role: "Rôle", statut: "Statut", actions: "Actions" },
+    },
+  },
+  // page d'administration ouverte par un associé ou un opérateur (maquettes v3, écran 7 ; R0-06)
+  reservee: {
+    titre: "Page réservée au gérant",
+    reservee: "Cette page est réservée au gérant.",
+    demandez: "Si vous avez besoin de cette information, demandez-la au gérant de la SCI.",
+  },
   accueil: {
     titre: "À faire",
     videGestion:

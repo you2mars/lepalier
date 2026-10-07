@@ -3,6 +3,7 @@
 import { createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test as base } from "@playwright/test";
+import { TEXTES } from "../src/textes";
 
 declare global {
   interface Window {
@@ -48,7 +49,7 @@ export const COMPTE = {
 
 // Comptes de l'écran du code, un par projet Playwright (l'anti-rejeu refuse deux fois un même code TOTP) :
 // clé TOTP en hexadécimal et deux codes de secours, créés par scripts/tests/test_plateforme.py.
-type CompteCode = { email: string; secret: string; secours: string[] };
+type CompteCode = { email: string; secret: string; secours: string[]; nom?: string };
 
 function lireCompte(variable: string, projet: string): CompteCode {
   const comptes = JSON.parse(process.env[variable] ?? "{}") as Record<string, CompteCode>;
@@ -103,4 +104,25 @@ export function base32EnHex(cle: string): string {
   }
   const octets = bits.match(/.{8}/g) ?? [];
   return octets.map((o) => parseInt(o, 2).toString(16).padStart(2, "0")).join("");
+}
+
+// gérant ou associé de l'essai de l'administration, un de chaque par projet
+export function compteAdmin(role: "gerant" | "associe", projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${role}-${projet}`);
+}
+
+// connexion complète : adresse, mot de passe (MOT_DE_PASSE de l'essai), puis code de l'application
+export async function seConnecter(page: Page, email: string, secretHex: string): Promise<void> {
+  await page.goto("/connexion");
+  await page.getByLabel(TEXTES.connexion.adresse).fill(email);
+  await page.getByLabel(TEXTES.connexion.motDePasse, { exact: true }).fill(COMPTE.motDePasse);
+  await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
+  await page.getByLabel(TEXTES.code.libelle).fill(codeTotp(secretHex));
+  await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(TEXTES.accueil.titre);
+}
+
+export async function sansDefilementHorizontal(page: Page): Promise<void> {
+  const largeurs = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(largeurs[0]).toBeLessThanOrEqual(largeurs[1]!);
 }

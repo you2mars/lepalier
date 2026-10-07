@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { personneConnectee } from "./session";
+import { lireConnecte, personneConnectee } from "./session";
 
 // Personne connectée, lue par le BFF dans /moi (identity) ; après un 401, retour à Se connecter avec le bon
 // bandeau (etat-session) et la page demandée (maquettes v3, § 0.3).
@@ -85,5 +85,38 @@ describe("personneConnectee", () => {
   it("identity en panne : null (information momentanément indisponible), pas de déconnexion", async () => {
     api({ "/api/identity/moi": reponse(502, {}) });
     expect(await personneConnectee()).toBeNull();
+  });
+});
+
+describe("lireConnecte (lectures d'un écran connecté)", () => {
+  it("lecture réussie : données", async () => {
+    api({ "/api/identity/utilisateurs": reponse(200, { utilisateurs: [] }) });
+    expect(await lireConnecte("/identity/utilisateurs")).toEqual({ ok: true, statut: 200, donnees: { utilisateurs: [] } });
+  });
+
+  it("403 (réservé au gérant) et pannes : rendus à l'écran, qui choisit quoi afficher", async () => {
+    api({ "/api/identity/utilisateurs": reponse(403, { code: "forbidden" }) });
+    expect(await lireConnecte("/identity/utilisateurs")).toEqual({ ok: false, statut: 403 });
+    api({ "/api/identity/utilisateurs": reponse(502, {}) });
+    expect(await lireConnecte("/identity/utilisateurs")).toEqual({ ok: false, statut: 502 });
+  });
+
+  it("401 en cours de navigation : Se connecter avec le bon bandeau et la page demandée", async () => {
+    api({
+      "/api/identity/utilisateurs": reponse(401, {}),
+      "/api/identity/auth/etat-session": reponse(200, { code: "compte_suspendu" }),
+    });
+    await expect(lireConnecte("/identity/utilisateurs")).rejects.toThrow(
+      "redirection /connexion?motif=compte_suspendu&retour=%2Fadministration%2Futilisateurs",
+    );
+  });
+
+  it("sans cookie de session : Se connecter sans message, aucun appel", async () => {
+    cookies.clear();
+    const appel = api({});
+    await expect(lireConnecte("/identity/utilisateurs")).rejects.toThrow(
+      "redirection /connexion?retour=%2Fadministration%2Futilisateurs",
+    );
+    expect(appel).not.toHaveBeenCalled();
   });
 });

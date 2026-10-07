@@ -114,8 +114,18 @@ describe("textes du front", () => {
       seDeconnecter: "Se déconnecter",
       aFaire: "À faire",
       administration: "Administration",
+      menuPrincipal: "Menu principal",
+      filAriane: "Fil d'Ariane",
     });
     expect(TEXTES.roles).toEqual({ gerant: "Gérant", associe: "Associé", operateur: "Opérateur" });
+    // une seule description par rôle (Q5), reprise telle quelle partout (décision du 7 octobre 2026)
+    expect(TEXTES.descriptionsRoles).toEqual({
+      associe:
+        "consulte tout (appartements, baux, loyers, charges, documents, envois), exporte et commente ; ne modifie rien",
+      operateur:
+        "saisit les relevés d'eau, les paiements, les factures et les pièces, et prépare les quittances et les avis ; ni bail, ni envoi recommandé",
+      gerant: "gère tout, y compris les utilisateurs",
+    });
     expect(TEXTES.accueil).toEqual({
       titre: "À faire",
       videGestion:
@@ -126,6 +136,21 @@ describe("textes du front", () => {
         "Votre compte est activé. Pour vous connecter la prochaine fois : votre adresse e-mail, votre mot de passe, puis le code de votre application.",
     });
     expect(TEXTES.indisponible).toBe("Information momentanément indisponible");
+  });
+
+  it("administration : liste des utilisateurs (N21, B) et page réservée au gérant (N25, R0-06)", () => {
+    expect(TEXTES.utilisateurs.liste).toEqual({
+      titre: "Utilisateurs",
+      inviter: "Inviter une personne",
+      gererAcces: "Gérer l'accès",
+      gererAccesDe: "de",
+      colonnes: { nom: "Nom", adresse: "Adresse e-mail", role: "Rôle", statut: "Statut", actions: "Actions" },
+    });
+    expect(TEXTES.reservee).toEqual({
+      titre: "Page réservée au gérant",
+      reservee: "Cette page est réservée au gérant.",
+      demandez: "Si vous avez besoin de cette information, demandez-la au gérant de la SCI.",
+    });
   });
 
   it("messages de commun repris quand aucune réponse de l'API n'est disponible : identiques à libs/commun", () => {

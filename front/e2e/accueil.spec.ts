@@ -1,24 +1,7 @@
 // Accueil « À faire » et cadre des écrans connectés (maquettes v3, écran 5 et § 0.2) : R0-03, R0-08, R0-20 à
 // R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant par projet (anti-rejeu TOTP).
-import type { Page } from "@playwright/test";
 import { TEXTES } from "../src/textes";
-import { codeTotp, compteAccueil, expect, test, verifierAccessibilite } from "./aides";
-
-const MOT_DE_PASSE = process.env.LEPALIER_E2E_MOT_DE_PASSE ?? "";
-
-async function seConnecter(page: Page, email: string, secret: string): Promise<void> {
-  await page.goto("/connexion");
-  await page.getByLabel(TEXTES.connexion.adresse).fill(email);
-  await page.getByLabel(TEXTES.connexion.motDePasse, { exact: true }).fill(MOT_DE_PASSE);
-  await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
-  await page.getByLabel(TEXTES.code.libelle).fill(codeTotp(secret));
-  await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
-}
-
-async function sansDefilementHorizontal(page: Page): Promise<void> {
-  const largeurs = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
-  expect(largeurs[0]).toBeLessThanOrEqual(largeurs[1]!);
-}
+import { compteAccueil, expect, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
 
 test.describe("Accueil « À faire »", () => {
   test("sans session : Se connecter, sans message, page demandée gardée", async ({ page }) => {

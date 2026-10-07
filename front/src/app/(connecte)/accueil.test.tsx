@@ -54,7 +54,7 @@ describe("Cadre des écrans connectés (maquettes v3, § 0.2 ; R0-03)", () => {
 
   it("menu du gérant : « À faire » et « Administration » (liste des utilisateurs)", () => {
     render(<CadreConnecte personne={GERANT}>contenu</CadreConnecte>);
-    const menu = screen.getByRole("navigation");
+    const menu = screen.getByRole("navigation", { name: C.menuPrincipal });
     expect(within(menu).getByRole("link", { name: C.aFaire })).toHaveAttribute("href", "/");
     expect(within(menu).getByRole("link", { name: C.administration })).toHaveAttribute(
       "href",
