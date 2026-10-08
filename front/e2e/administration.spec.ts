@@ -2,11 +2,13 @@
 // R0-20 à R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant et un associé par projet.
 import { libelle } from "../src/lib/libelles";
 import { TEXTES } from "../src/textes";
-import { compteAdmin, compteVise, expect, pret, sansDefilementHorizontal, test, verifierAccessibilite } from "./aides";
+import { compteAdmin, compteVise, expect, pret, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
 
 const L = TEXTES.utilisateurs.liste;
 const I = TEXTES.utilisateurs.inviter;
 const F = TEXTES.utilisateurs.fiche;
+const R = TEXTES.utilisateurs.role;
+const D = TEXTES.descriptionsRoles;
 
 test.describe("Administration › Utilisateurs, gérant", () => {
   test.use({ sessionAdmin: "gerant" });
@@ -156,6 +158,74 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     await expect(page).toHaveURL(/\/administration\/utilisateurs$/);
     await expect(page.getByRole("status")).toContainText(`Invitation de ${invite.nom} annulée.`);
     await expect(page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${invite.nom}` })).toHaveCount(0);
+  });
+
+  test("changer le rôle : inchangé, opérateur, gérant (confirmation), de nouveau associé ; la fiche le dit (6.4)", async ({
+    page,
+  }, infos) => {
+    const vise = compteVise("role", infos.project.name);
+    const option = (r: "associe" | "operateur" | "gerant") => page.getByRole("radio", { name: new RegExp(`^${TEXTES.roles[r]} — `) });
+    const ouvrir = async () => {
+      await page.getByRole("link", { name: F.changerRole }).click();
+      await pret(page);
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Changer le rôle de ${vise.nom}`);
+    };
+    await page.goto("/administration/utilisateurs");
+    await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${vise.nom}` }).first().click();
+    await pret(page);
+    await ouvrir();
+    await expect(page.getByRole("radio", { name: `${TEXTES.roles.associe} — ${D.associe}. ${R.roleActuel}` })).toBeChecked();
+    await verifierAccessibilite(page);
+    await sansDefilementHorizontal(page);
+
+    await page.getByRole("button", { name: R.enregistrer }).click();
+    await expect(page.getByRole("status")).toContainText(`Aucun changement : ${vise.nom} a déjà le rôle Associé.`);
+
+    await ouvrir();
+    await option("operateur").check();
+    await page.getByRole("button", { name: R.enregistrer }).click();
+    await expect(page.getByRole("status")).toContainText(`Rôle de ${vise.nom} changé : Opérateur (auparavant Associé).`);
+    await expect(page.getByText("Rôle : Opérateur")).toBeVisible();
+
+    await ouvrir();
+    await option("gerant").check();
+    await page.getByRole("button", { name: R.enregistrer }).click();
+    const boite = page.getByRole("dialog", { name: `Donner le rôle de gérant à ${vise.nom} ?` });
+    await expect(boite.getByRole("button", { name: R.annuler })).toBeFocused();
+    await verifierAccessibilite(page);
+    await boite.getByRole("button", { name: R.donnerGerant.bouton }).click();
+    await expect(page.getByRole("status")).toContainText(`Rôle de ${vise.nom} changé : Gérant (auparavant Opérateur).`);
+
+    await ouvrir();
+    await option("associe").check();
+    await page.getByRole("button", { name: R.enregistrer }).click();
+    await expect(page.getByRole("status")).toContainText(`Rôle de ${vise.nom} changé : Associé (auparavant Gérant).`);
+  });
+});
+
+test.describe("Administration › Utilisateurs, gérant qui quitte son rôle", () => {
+  test("quitter soi-même le rôle de gérant : confirmation, puis l'accueil sans « Administration » (6.4, A8)", async ({
+    page,
+  }, infos) => {
+    const moi = compteVise("quitte", infos.project.name);
+    await seConnecter(page, moi.email, moi.secret);
+    await page.goto("/administration/utilisateurs");
+    await page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${moi.nom}` }).first().click();
+    await pret(page);
+    await page.getByRole("link", { name: F.changerRole }).click();
+    await pret(page);
+    await page.getByRole("radio", { name: new RegExp(`^${TEXTES.roles.associe} — `) }).check();
+    await page.getByRole("button", { name: R.enregistrer }).click();
+    const boite = page.getByRole("dialog", { name: R.quitterGerant.question });
+    await expect(boite).toContainText(R.quitterGerant.explication);
+    await boite.getByRole("button", { name: R.quitterGerant.bouton }).click();
+    await expect(page).toHaveURL(/\/\?motif=role_quitte$/);
+    await expect(page.getByRole("status")).toContainText(
+      "Votre rôle est maintenant Associé. L'Administration n'est plus accessible depuis ce compte.",
+    );
+    await expect(page.getByText(`${moi.nom} · ${TEXTES.cadre.role} ${TEXTES.roles.associe}`)).toBeVisible();
+    const menu = page.getByRole("navigation", { name: TEXTES.cadre.menuPrincipal });
+    await expect(menu.getByRole("link", { name: TEXTES.cadre.administration })).toHaveCount(0);
   });
 });
 

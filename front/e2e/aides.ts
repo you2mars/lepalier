@@ -160,8 +160,9 @@ async function codeNeuf(secretHex: string): Promise<string> {
   return codeTotp(secretHex);
 }
 
-// comptes visés par les actions de la fiche « Gérer l'accès » (6.3) : associé actif ou invitation, un par projet
-export function compteVise(genre: "cible" | "invite", projet: string): CompteCode {
+// comptes visés par les actions de l'administration (6.3, 6.4) : associé actif, invitation, rôle à changer, gérant
+// qui quitte son rôle ; un de chaque par projet
+export function compteVise(genre: "cible" | "invite" | "role" | "quitte", projet: string): CompteCode {
   return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${genre}-${projet}`);
 }
 

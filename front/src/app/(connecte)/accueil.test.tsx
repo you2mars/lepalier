@@ -137,6 +137,19 @@ describe("Accueil « À faire » (maquettes v3, écran 5 ; UX-25, UX-27)", () =>
     expect(bandeau).toHaveTextContent(TEXTES.codes.perdus);
   });
 
+  it("après avoir quitté soi-même le rôle de gérant (A8) : bandeau « Fait » avec le rôle relu chez identity", async () => {
+    personne = { ...ASSOCIE };
+    render(await Accueil({ searchParams: Promise.resolve({ motif: "role_quitte" }) }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Votre rôle est maintenant Associé. L'Administration n'est plus accessible depuis ce compte.",
+    );
+  });
+
+  it("« role_quitte » ouvert par un gérant (adresse retapée) : aucun bandeau", async () => {
+    const { container } = render(await Accueil({ searchParams: Promise.resolve({ motif: "role_quitte" }) }));
+    expect(container.querySelector(".bandeau")).toBeNull();
+  });
+
   it("motif inconnu : aucun bandeau", async () => {
     const { container } = render(await Accueil({ searchParams: Promise.resolve({ motif: "autre" }) }));
     expect(container.querySelector(".bandeau")).toBeNull();

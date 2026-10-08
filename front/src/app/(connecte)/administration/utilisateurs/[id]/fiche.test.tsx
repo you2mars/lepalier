@@ -120,6 +120,14 @@ describe("Gérer l'accès : page (maquettes v3, écran 6.3)", () => {
   });
 });
 
+describe("Gérer l'accès : message laissé par l'écran « Changer le rôle »", () => {
+  it("affiché sur la fiche, page d'arrivée", async () => {
+    const message = { etat: "fait" as const, texte: "Rôle de Mme Durand changé : Opérateur (auparavant Associé).", pour: "/administration/utilisateurs/0192-b" };
+    render(<MessageFlashProvider initial={message}>{await Page({ params: Promise.resolve({ id: "0192-b" }) })}</MessageFlashProvider>);
+    expect(screen.getByRole("status")).toHaveTextContent("Rôle de Mme Durand changé : Opérateur (auparavant Associé).");
+  });
+});
+
 describe("Gérer l'accès : fiche", () => {
   it("adresse, rôle en mots du lexique avec « Changer le rôle », statut en mots d'identity", () => {
     afficher(ACTIF);

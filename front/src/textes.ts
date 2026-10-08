@@ -140,6 +140,27 @@ export const TEXTES = {
       },
       succes: "Invitation envoyée à {nom} ({adresse}). Le lien est valable 7 jours.",
     },
+    // écran 6.4 (N24, A7, A8)
+    role: {
+      titre: "Changer le rôle de {nom}",
+      filAriane: "Rôle",
+      roleActuel: "(rôle actuel)",
+      enregistrer: "Enregistrer",
+      annuler: "Annuler",
+      donnerGerant: {
+        question: "Donner le rôle de gérant à {nom} ?",
+        explication: "Ce compte pourra gérer tout LePalier, y compris inviter, suspendre et réinitialiser les utilisateurs.",
+        bouton: "Donner le rôle de gérant",
+      },
+      quitterGerant: {
+        question: "Quitter le rôle de gérant ?",
+        explication: "Vous n'aurez plus accès à l'Administration. Un autre gérant pourra vous redonner ce rôle.",
+        bouton: "Quitter le rôle de gérant",
+        succes: "Votre rôle est maintenant {role}. L'Administration n'est plus accessible depuis ce compte.",
+      },
+      succes: "Rôle de {nom} changé : {nouveau} (auparavant {ancien}).",
+      aucunChangement: "Aucun changement : {nom} a déjà le rôle {role}.",
+    },
     // écran 6.3 (N23, A6, décision du 7 octobre 2026 pour sa propre fiche)
     fiche: {
       titre: "Accès de {nom}",

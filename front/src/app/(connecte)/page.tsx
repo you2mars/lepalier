@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { EtatVide } from "@/components/ui/EtatVide";
 import { type Parametres, premier } from "@/lib/parametres";
+import { remplir } from "@/lib/modele";
 import { personneConnectee } from "@/lib/session";
 import { TEXTES } from "@/textes";
 
@@ -16,8 +17,16 @@ const BANDEAUX: Record<string, { etat: EtatBandeau; texte: string }> = {
 
 export default async function Accueil({ searchParams }: { searchParams: Parametres }) {
   const motif = premier((await searchParams).motif);
-  const bandeau = motif ? BANDEAUX[motif] : undefined;
   const personne = await personneConnectee();
+  // après avoir quitté soi-même le rôle de gérant (A8) : rôle relu chez identity, jamais pris dans l'adresse
+  const roleQuitte =
+    motif === "role_quitte" && personne && personne.role !== "gerant"
+      ? {
+          etat: "fait" as const,
+          texte: remplir(TEXTES.utilisateurs.role.quitterGerant.succes, { role: TEXTES.roles[personne.role] }),
+        }
+      : undefined;
+  const bandeau = roleQuitte ?? (motif ? BANDEAUX[motif] : undefined);
   const vide = personne?.role === "associe" ? TEXTES.accueil.videAssocie : TEXTES.accueil.videGestion;
   return (
     <>

@@ -2,6 +2,7 @@
 // page introuvable ; associé ou opérateur (ou 403) : page réservée au gérant ; panne : information indisponible.
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { BandeauFlash } from "@/components/cadre/MessageFlash";
 import { PageReservee } from "@/components/cadre/PageReservee";
 import { FilAriane } from "@/components/ui/FilAriane";
 import { remplir } from "@/lib/modele";
@@ -42,6 +43,7 @@ export default async function Page({ params }: Parametres) {
   const fiche = lecture.donnees;
   return (
     <>
+      <BandeauFlash />
       <FilAriane etapes={[...etapes, { libelle: fiche.nom_affiche }]} />
       <h1>{remplir(TEXTES.utilisateurs.fiche.titre, { nom: fiche.nom_affiche })}</h1>
       <GestionAcces fiche={fiche} estMoi={fiche.id === personne.id} />

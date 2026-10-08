@@ -207,6 +207,26 @@ describe("textes du front", () => {
         succes: "Invitation de {nom} annulée.",
       },
     });
+    expect(TEXTES.utilisateurs.role).toEqual({
+      titre: "Changer le rôle de {nom}",
+      filAriane: "Rôle",
+      roleActuel: "(rôle actuel)",
+      enregistrer: "Enregistrer",
+      annuler: "Annuler",
+      donnerGerant: {
+        question: "Donner le rôle de gérant à {nom} ?",
+        explication: "Ce compte pourra gérer tout LePalier, y compris inviter, suspendre et réinitialiser les utilisateurs.",
+        bouton: "Donner le rôle de gérant",
+      },
+      quitterGerant: {
+        question: "Quitter le rôle de gérant ?",
+        explication: "Vous n'aurez plus accès à l'Administration. Un autre gérant pourra vous redonner ce rôle.",
+        bouton: "Quitter le rôle de gérant",
+        succes: "Votre rôle est maintenant {role}. L'Administration n'est plus accessible depuis ce compte.",
+      },
+      succes: "Rôle de {nom} changé : {nouveau} (auparavant {ancien}).",
+      aucunChangement: "Aucun changement : {nom} a déjà le rôle {role}.",
+    });
     expect(TEXTES.reservee).toEqual({
       titre: "Page réservée au gérant",
       reservee: "Cette page est réservée au gérant.",

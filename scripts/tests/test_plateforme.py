@@ -829,6 +829,23 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
             "secours": [],
             "nom": cible,
         }
+        # écran 6.4 : un associé dont le gérant change le rôle, un second gérant qui quitte lui-même ce rôle
+        nom_role = f"Mme Rôle {projet}"
+        _creer_compte(plateforme, f"e2e-role-{projet}@essai.local", role="associe", nom=nom_role)
+        comptes_admin[f"role-{projet}"] = {
+            "email": f"e2e-role-{projet}@essai.local",
+            "secret": "",
+            "secours": [],
+            "nom": nom_role,
+        }
+        nom_quitte = f"M. Quitte {projet}"
+        _, secret_quitte = _creer_compte(plateforme, f"e2e-quitte-{projet}@essai.local", nom=nom_quitte)
+        comptes_admin[f"quitte-{projet}"] = {
+            "email": f"e2e-quitte-{projet}@essai.local",
+            "secret": secret_quitte,
+            "secours": [],
+            "nom": nom_quitte,
+        }
         invitee = f"M. Invité {projet}"
         plateforme.python(INVITER.format(email=f"e2e-invite-{projet}@essai.local", nom=invitee))
         comptes_admin[f"invite-{projet}"] = {
