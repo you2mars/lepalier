@@ -114,7 +114,8 @@ describe("Administration › Utilisateurs (maquettes v3, écran 6.1 ; R0-04)", (
     const { container } = render(await Page({ searchParams: Promise.resolve({}) }));
     const cartes = within(container.querySelector(".cartes") as HTMLElement).getAllByRole("link");
     expect(cartes.map((c) => c.getAttribute("href"))).toEqual(UTILISATEURS.map((u) => `/administration/utilisateurs/${u.id}`));
-    expect(cartes[1]).toHaveAccessibleName("Gérer l'accès de Mme Durand");
+    // revue UX (M6) : le lecteur d'écran entend aussi le rôle et le statut
+    expect(cartes[1]).toHaveAccessibleName("Gérer l'accès de Mme Durand Associé Invitation envoyée");
     expect(cartes[1]).toHaveTextContent("Mme Durand");
     expect(cartes[1]).toHaveTextContent("Associé");
     expect(cartes[1]).toHaveTextContent("Invitation envoyée");

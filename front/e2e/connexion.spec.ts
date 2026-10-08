@@ -69,7 +69,7 @@ test.describe("Se connecter", () => {
 
   test("cibles d'au moins 44 px et aucun défilement horizontal (UX-8, R0-20, R0-23)", async ({ page }) => {
     await page.goto("/connexion");
-    for (const cible of await page.locator("input, button").all()) {
+    for (const cible of await page.locator("input, button, a.lien").filter({ visible: true }).all()) {
       const boite = await cible.boundingBox();
       expect(boite?.height ?? 0).toBeGreaterThanOrEqual(44);
     }

@@ -135,7 +135,9 @@ describe("Inviter une personne : confirmation récapitulative (UX-3, B2)", () =>
     await remplir();
     await envoyer();
     const boite = screen.getByRole("dialog", { name: "Envoyer l'invitation à Mme Durand ?" });
-    expect(within(boite).getByText("Adresse : marie.durand@exemple.fr")).toBeInTheDocument();
+    expect(within(boite).getByText("marie.durand@exemple.fr").closest("p")).toHaveTextContent(
+      "Adresse : marie.durand@exemple.fr",
+    );
     expect(within(boite).getByText(`Rôle : Associé — ${D.associe}.`)).toBeInTheDocument();
     expect(within(boite).getByText(I.confirmation.validite)).toBeInTheDocument();
     expect(within(boite).getByRole("button", { name: I.confirmation.modifier })).toHaveFocus();

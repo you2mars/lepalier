@@ -51,8 +51,10 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     await page.getByRole("link", { name: L.inviter }).click();
     await expect(page).toHaveTitle("Inviter une personne — LePalier");
     await pret(page);
-    const nom = `Mme Invitée ${infos.project.name}`;
-    const adresse = `invitee-${infos.project.name}@essai.local`;
+    // propres à chaque répétition (--repeat-each, diagnostic) : une adresse ne s'invite qu'une fois
+    const suffixe = infos.repeatEachIndex ? `-${infos.repeatEachIndex}` : "";
+    const nom = `Mme Invitée ${infos.project.name}${suffixe}`;
+    const adresse = `invitee-${infos.project.name}${suffixe}@essai.local`;
     await page.getByLabel(I.nomAffiche).fill(nom);
     await page.getByLabel(I.adresse).fill(adresse);
     await page.getByRole("radio", { name: `${TEXTES.roles.operateur} — ${TEXTES.descriptionsRoles.operateur}.` }).check();

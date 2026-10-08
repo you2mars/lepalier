@@ -39,7 +39,7 @@ test.describe("Code de vérification", () => {
     await expect(code).toHaveAttribute("autocomplete", "one-time-code");
     await expect(page.getByRole("button", { name: TEXTES.connexion.bouton })).toHaveCount(1);
     await verifierAccessibilite(page);
-    for (const cible of await page.locator("input, button").all()) {
+    for (const cible of await page.locator("input, button, a.lien").filter({ visible: true }).all()) {
       const boite = await cible.boundingBox();
       expect(boite?.height ?? 0).toBeGreaterThanOrEqual(44);
     }

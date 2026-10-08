@@ -105,6 +105,15 @@ describe("Code de vérification : structure (R0-02, UX-1, maquettes v3 écran 2)
 });
 
 describe("Code de vérification : mode code de secours", () => {
+  it("mode code de secours : la consigne parle des codes de secours, plus de l'application (revue UX, M1)", async () => {
+    render(<FormulaireCode />);
+    await userEvent.click(screen.getByRole("button", { name: TEXTES.code.utiliserSecours }));
+    expect(screen.getByText(TEXTES.code.consigneSecours)).toBeInTheDocument();
+    expect(screen.queryByText(TEXTES.code.consigne)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: TEXTES.code.utiliserApplication }));
+    expect(screen.getByText(TEXTES.code.consigne)).toBeInTheDocument();
+  });
+
   it("« Utiliser un code de secours » : champ adapté, aide, champ vidé et focus dessus", async () => {
     render(<FormulaireCode />);
     await userEvent.type(champCode(), "12");

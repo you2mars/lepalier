@@ -35,11 +35,13 @@ async function sansDefilementHorizontal(page: Page): Promise<void> {
 }
 
 test.describe("Activer mon compte", () => {
-  test("lien inconnu : seulement le titre et le message du lien invalide", async ({ page }) => {
+  test("lien inconnu : le message du lien invalide et un chemin vers Se connecter (revue UX, B1)", async ({ page }) => {
     await ouvrirLeLien(page, "x".repeat(43));
     await expect(page.getByText(libelle("invitation.lien_invalide"))).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(T.titre);
     await expect(page.getByRole("textbox")).toHaveCount(0);
+    await expect(page.getByText(T.dejaActive)).toBeVisible();
+    await expect(page.getByRole("link", { name: TEXTES.connexion.titre })).toHaveAttribute("href", "/connexion");
     await verifierAccessibilite(page);
   });
 
@@ -81,10 +83,14 @@ test.describe("Activer mon compte", () => {
     await continuer(page);
     await expect(titreEtape(page, 2)).toBeFocused();
     await expect(page.getByRole("img", { name: T.altQr })).toBeVisible();
+    // revue UX (M2) : le lien qui ouvre l'application du téléphone n'apparaît que sur un écran tactile
+    const ajouter = page.getByRole("link", { name: T.ajouter });
+    if (isMobile) await expect(ajouter).toBeVisible();
+    else await expect(ajouter).toBeHidden();
     await expect(page.getByLabel(T.libelleCode)).toHaveAttribute("inputmode", "numeric");
     await verifierAccessibilite(page);
     await sansDefilementHorizontal(page);
-    for (const cible of await page.locator("input:not([hidden]), button, a.bouton").all()) {
+    for (const cible of await page.locator("input:not([hidden]), button, a.bouton, a.lien").filter({ visible: true }).all()) {
       const boite = await cible.boundingBox();
       expect(boite?.height ?? 0).toBeGreaterThanOrEqual(44);
     }

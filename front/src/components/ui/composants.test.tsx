@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TEXTES } from "@/textes";
+import { AdresseEmail } from "./AdresseEmail";
 import { BoutonLien } from "./BoutonLien";
 import { CleARecopier } from "./CleARecopier";
 import { CodeQr } from "./CodeQr";
@@ -10,10 +11,12 @@ import { Encadre } from "./Encadre";
 import { EtatVide } from "./EtatVide";
 import { FilAriane } from "./FilAriane";
 import { FeuilleImpression, HorsImpression } from "./Impression";
+import { Lien } from "./Lien";
 import { LienBouton } from "./LienBouton";
 import { ListeCodes } from "./ListeCodes";
 import { RappelPermanent } from "./RappelPermanent";
 import { Squelette } from "./Squelette";
+import { SurEcranTactile } from "./SurEcranTactile";
 import { TableauResponsive } from "./TableauResponsive";
 import { TexteMasque } from "./TexteMasque";
 
@@ -190,7 +193,7 @@ describe("TableauResponsive (UX-26)", () => {
     {
       cle: "1",
       cellules: ["Mme Durand", "Accès actif", <a key="a" href="/fiche/1">Gérer</a>],
-      carte: { href: "/fiche/1", nom: "Gérer l'accès de Mme Durand", contenu: ["Mme Durand", "Accès actif"] },
+      carte: { href: "/fiche/1", prefixeMasque: "Gérer l'accès de", contenu: ["Mme Durand", "Accès actif"] },
     },
   ];
 
@@ -203,11 +206,30 @@ describe("TableauResponsive (UX-26)", () => {
     expect(within(tableau).getAllByRole("row")).toHaveLength(2);
   });
 
-  it("mobile : une carte par ligne, toute la carte est un lien nommé", () => {
+  it("mobile : une carte par ligne, toute la carte est un lien, dont tout le contenu est lu (début masqué à l'écran)", () => {
     const { container } = render(<TableauResponsive libelle="Utilisateurs" colonnes={COLONNES} lignes={LIGNES} />);
     const cartes = container.querySelector(".cartes")!;
-    const lien = within(cartes as HTMLElement).getByRole("link", { name: "Gérer l'accès de Mme Durand" });
+    const lien = within(cartes as HTMLElement).getByRole("link", { name: "Gérer l'accès de Mme Durand Accès actif" });
     expect(lien).toHaveAttribute("href", "/fiche/1");
     expect(lien).toHaveTextContent("Mme Durand");
+  });
+});
+
+describe("AdresseEmail et Lien (revue UX, M3 et M4)", () => {
+  it("adresse e-mail : jamais coupée à un trait d'union, coupée à la largeur seulement si elle est trop longue", () => {
+    render(<AdresseEmail>exemple-mobile-360@essai.local</AdresseEmail>);
+    expect(screen.getByText("exemple-mobile-360@essai.local")).toHaveClass("adresse-email");
+  });
+
+  it("lien de texte : cible de 44 px (classe lien)", () => {
+    render(<Lien href="/connexion">Retour à la connexion</Lien>);
+    const lien = screen.getByRole("link", { name: "Retour à la connexion" });
+    expect(lien).toHaveAttribute("href", "/connexion");
+    expect(lien).toHaveClass("lien");
+  });
+
+  it("sur écran tactile seulement : contenu enveloppé, caché sur un poste à souris par la feuille de style", () => {
+    render(<SurEcranTactile><a href="otpauth://x">Ajouter à mon application</a></SurEcranTactile>);
+    expect(screen.getByRole("link").parentElement).toHaveClass("seulement-tactile");
   });
 });

@@ -4,9 +4,10 @@
 // récapitulative pour les actions irréversibles ou qui touchent la personne (UX-3), sans pour réactiver et renvoyer ;
 // chaque écriture avec sa clé d'idempotence ; bandeau qui dit ce qui s'est passé, puis fiche relue (UX-4).
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useAnnonce } from "@/components/cadre/MessageFlash";
 import { Actions } from "@/components/ui/Actions";
+import { AdresseEmail } from "@/components/ui/AdresseEmail";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { BoiteDeConfirmation } from "@/components/ui/BoiteDeConfirmation";
 import { Bouton } from "@/components/ui/Bouton";
@@ -14,7 +15,7 @@ import { LienBouton } from "@/components/ui/LienBouton";
 import { envoyer } from "@/lib/api";
 import { dateEnToutesLettres } from "@/lib/format";
 import { libelle } from "@/lib/libelles";
-import { remplir } from "@/lib/modele";
+import { remplir, remplirAvec } from "@/lib/modele";
 import { reprendreSession } from "@/lib/navigation";
 import type { Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
@@ -35,7 +36,7 @@ export type Fiche = {
 };
 
 type Action = "suspendre" | "reactiver" | "reinitialiser" | "renvoyer" | "annulerInvitation";
-type Message = { etat: EtatBandeau; texte: string };
+type Message = { etat: EtatBandeau; texte: ReactNode };
 
 // adresse, méthode et corps de chaque écriture d'identity
 function requete(action: Action, id: string): { chemin: string; methode: "POST" | "PATCH"; corps: unknown } {
@@ -77,6 +78,8 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
     routeur.refresh();
   }
   const valeurs = { nom: fiche.nom_affiche, adresse: fiche.email };
+  // adresse e-mail jamais coupée à un trait d'union (revue UX, M3)
+  const avecAdresse = { nom: fiche.nom_affiche, adresse: <AdresseEmail>{fiche.email}</AdresseEmail> };
 
   async function agir(action: Action) {
     setEnCours(action);
@@ -93,7 +96,7 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
         routeur.push("/administration/utilisateurs");
         return;
       }
-      setMessage({ etat: "fait", texte });
+      setMessage({ etat: "fait", texte: remplirAvec(F[action].succes, avecAdresse) });
       relire();
       return;
     }
@@ -129,15 +132,18 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
         })
       : null;
 
-  const confirmations: Record<"suspendre" | "reinitialiser" | "annulerInvitation", { explication: string; annuler: string }> =
+  const confirmations: Record<"suspendre" | "reinitialiser" | "annulerInvitation", { explication: ReactNode; annuler: string }> =
     {
       suspendre: { explication: F.suspendre.explication, annuler: F.annuler },
       reinitialiser: {
         // sans date (décision du 7 octobre 2026) : la date exacte vient d'identity dans la fiche relue
-        explication: remplir(F.reinitialiser.explication, { adresse: fiche.email }),
+        explication: remplirAvec(F.reinitialiser.explication, avecAdresse),
         annuler: F.annuler,
       },
-      annulerInvitation: { explication: remplir(F.annulerInvitation.explication, valeurs), annuler: F.annulerInvitation.garder },
+      annulerInvitation: {
+        explication: remplirAvec(F.annulerInvitation.explication, avecAdresse),
+        annuler: F.annulerInvitation.garder,
+      },
     };
   const enConfirmation =
     confirmation === "suspendre" || confirmation === "reinitialiser" || confirmation === "annulerInvitation"
@@ -147,7 +153,7 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
   return (
     <>
       {message ? <Bandeau etat={message.etat} message={message.texte} /> : null}
-      <p>{remplir(F.adresse, { adresse: fiche.email })}</p>
+      <p>{remplirAvec(F.adresse, avecAdresse)}</p>
       <p>{remplir(F.role, { role: TEXTES.roles[fiche.role] })}</p>
       <p>
         <LienBouton href={`/administration/utilisateurs/${fiche.id}/role`}>{F.changerRole}</LienBouton>

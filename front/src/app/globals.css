@@ -193,7 +193,8 @@ a.bouton-principal { width: auto; }
   color: var(--texte);
   text-decoration: none;
 }
-.carte .carte-ligne:first-child { font-weight: var(--graisse-forte); color: var(--action); text-decoration: underline; }
+/* nom de la personne : première ligne visible, après le début masqué */
+.carte .masque-visuellement + .carte-ligne { font-weight: var(--graisse-forte); color: var(--action); text-decoration: underline; }
 @media (max-width: 48rem) {
   .tableau { display: none; }
   .cartes { display: block; }
@@ -210,3 +211,14 @@ a.bouton-principal { width: auto; }
 .choix-unique legend { font-weight: var(--graisse-moyenne); margin-bottom: var(--espace); padding: 0; }
 .choix-unique label { display: flex; align-items: flex-start; gap: var(--espace); min-height: var(--cible); padding: var(--espace) 0; cursor: pointer; }
 .choix-unique input { width: var(--case); height: var(--case); margin: 0; flex: none; }
+
+/* revue UX du 8 octobre 2026 */
+/* adresse e-mail : jamais coupée à un trait d'union (M3) */
+.adresse-email { line-break: anywhere; overflow-wrap: anywhere; }
+.adresse-email-seule { display: block; }
+/* liens de texte : cible de 44 px (M4) */
+.lien { display: inline-flex; align-items: center; min-height: var(--cible); }
+/* lien qui ouvre une application du téléphone : caché sur un poste à souris (M2) */
+@media (hover: hover) and (pointer: fine) {
+  .seulement-tactile { display: none; }
+}

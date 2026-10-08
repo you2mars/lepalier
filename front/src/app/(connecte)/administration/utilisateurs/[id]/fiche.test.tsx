@@ -131,7 +131,9 @@ describe("Gérer l'accès : message laissé par l'écran « Changer le rôle »"
 describe("Gérer l'accès : fiche", () => {
   it("adresse, rôle en mots du lexique avec « Changer le rôle », statut en mots d'identity", () => {
     afficher(ACTIF);
-    expect(screen.getByText("Adresse e-mail : marie.durand@exemple.fr")).toBeInTheDocument();
+    expect(screen.getByText("marie.durand@exemple.fr").closest("p")).toHaveTextContent("Adresse e-mail : marie.durand@exemple.fr");
+    // adresse jamais coupée à un trait d'union (revue UX, M3)
+    expect(screen.getByText("marie.durand@exemple.fr")).toHaveClass("adresse-email");
     expect(screen.getByText("Rôle : Associé")).toBeInTheDocument();
     expect(screen.getByText("Statut : Accès actif")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: F.changerRole })).toHaveAttribute(

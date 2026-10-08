@@ -3,12 +3,13 @@
 import type { Metadata } from "next";
 import { BandeauFlash } from "@/components/cadre/MessageFlash";
 import { PageReservee } from "@/components/cadre/PageReservee";
+import { AdresseEmail } from "@/components/ui/AdresseEmail";
 import { Bandeau } from "@/components/ui/Bandeau";
 import { FilAriane } from "@/components/ui/FilAriane";
 import { LienBouton } from "@/components/ui/LienBouton";
 import { TableauResponsive } from "@/components/ui/TableauResponsive";
 import { TexteMasque } from "@/components/ui/TexteMasque";
-import { remplir } from "@/lib/modele";
+import { remplirAvec } from "@/lib/modele";
 import { type Parametres, premier } from "@/lib/parametres";
 import { lireConnecte, personneConnectee, type Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
@@ -30,7 +31,6 @@ export default async function Page({ searchParams }: { searchParams: Parametres 
   const lignes = lecture.ok
     ? lecture.donnees.utilisateurs.map((u) => {
         const href = `/administration/utilisateurs/${u.id}`;
-        const nom = `${L.gererAcces} ${L.gererAccesDe} ${u.nom_affiche}`;
         return {
           cle: u.id,
           cellules: [
@@ -43,7 +43,11 @@ export default async function Page({ searchParams }: { searchParams: Parametres 
               <TexteMasque>{`${L.gererAccesDe} ${u.nom_affiche}`}</TexteMasque>
             </LienBouton>,
           ],
-          carte: { href, nom, contenu: [u.nom_affiche, TEXTES.roles[u.role], u.statut_libelle] },
+          carte: {
+            href,
+            prefixeMasque: `${L.gererAcces} ${L.gererAccesDe}`,
+            contenu: [u.nom_affiche, TEXTES.roles[u.role], u.statut_libelle],
+          },
         };
       })
     : null;
@@ -55,7 +59,10 @@ export default async function Page({ searchParams }: { searchParams: Parametres 
       {nouvelle ? (
         <Bandeau
           etat="fait"
-          message={remplir(TEXTES.utilisateurs.inviter.succes, { nom: nouvelle.nom_affiche, adresse: nouvelle.email })}
+          message={remplirAvec(TEXTES.utilisateurs.inviter.succes, {
+            nom: nouvelle.nom_affiche,
+            adresse: <AdresseEmail>{nouvelle.email}</AdresseEmail>,
+          })}
         />
       ) : null}
       <FilAriane etapes={[{ libelle: TEXTES.cadre.administration }, { libelle: L.titre }]} />

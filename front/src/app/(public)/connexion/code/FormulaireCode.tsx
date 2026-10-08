@@ -1,7 +1,6 @@
 "use client";
 // Code de vérification (maquettes v3, écran 2 ; R0-02, R0-14) : code de l'application ou code de secours, dans
 // un seul champ ; le lien vers le code de secours suit le champ et son erreur (M4), car code.incorrect les cite.
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
@@ -9,6 +8,7 @@ import { Bouton } from "@/components/ui/Bouton";
 import { BoutonLien } from "@/components/ui/BoutonLien";
 import { Champ } from "@/components/ui/Champ";
 import { Formulaire } from "@/components/ui/Formulaire";
+import { Lien } from "@/components/ui/Lien";
 import { envoyer } from "@/lib/api";
 import { adresseConnexion, cheminDeRetour } from "@/lib/retour";
 import { TEXTES } from "@/textes";
@@ -70,7 +70,8 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
     <>
       {bandeau ? <Bandeau etat={bandeau.etat} message={bandeau.texte} /> : null}
       <h1>{TEXTES.code.titre}</h1>
-      <p>{TEXTES.code.consigne}</p>
+      {/* revue UX (M1) : en mode code de secours, la consigne parle des codes de secours */}
+      <p>{secours ? TEXTES.code.consigneSecours : TEXTES.code.consigne}</p>
       <Formulaire onSubmit={soumettre}>
         <Champ
           id="code"
@@ -93,7 +94,7 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
         <Bouton envoiEnCours={envoiEnCours}>{TEXTES.connexion.bouton}</Bouton>
       </Formulaire>
       <p>
-        <Link href={adresseConnexion(null, retour)}>{TEXTES.code.recommencer}</Link>
+        <Lien href={adresseConnexion(null, retour)}>{TEXTES.code.recommencer}</Lien>
       </p>
       <p>{TEXTES.code.sansTelephone}</p>
     </>

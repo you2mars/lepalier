@@ -37,6 +37,8 @@ export const TEXTES = {
     recommencer: "Recommencer la connexion",
     sansTelephone:
       "Vous n'avez plus votre téléphone ni vos codes de secours ? Demandez au gérant de la SCI de réinitialiser votre accès.",
+    // revue UX du 8 octobre 2026 (M1) : consigne du mode code de secours
+    consigneSecours: "Saisissez l'un des codes de secours que vous avez notés ou imprimés à l'activation de votre compte.",
   },
   activation: {
     titre: "Activer mon compte",
@@ -71,6 +73,9 @@ export const TEXTES = {
     libelleCode: "Code à 6 chiffres affiché par l'application",
     // accès à /activation sans le lien de l'e-mail (décision du 6 octobre 2026) ; « lien invalide » reste au 410
     sansLien: "Pour activer votre compte, ouvrez le lien reçu dans l'e-mail d'invitation.",
+    // revue UX du 8 octobre 2026 (B1) : lien déjà utilisé ou expiré, chemin vers Se connecter
+    dejaActive:
+      "Si vous avez déjà activé votre compte, ce lien ne sert plus : connectez-vous avec votre adresse e-mail et votre mot de passe.",
   },
   codes: {
     titre: "Vos codes de secours",
@@ -221,6 +226,29 @@ export const TEXTES = {
   },
   // bloc ou écran dont la source ne répond pas (UX-30)
   indisponible: "Information momentanément indisponible",
+  // Mot de passe oublié (N26) et Choisir un nouveau mot de passe (N27)
+  reinitialisation: {
+    demande: {
+      titre: "Mot de passe oublié",
+      consigne: "Indiquez l'adresse e-mail de votre compte. Vous recevrez un lien pour choisir un nouveau mot de passe.",
+      adresse: "Adresse e-mail",
+      bouton: "Recevoir le lien",
+      retour: "Retour à la connexion",
+      // revue UX du 8 octobre 2026 (M5) : l'adresse saisie est rappelée, pour voir une faute de frappe
+      adresseSaisie: "Adresse saisie :",
+      autreAdresse: "Saisir une autre adresse",
+    },
+    choix: {
+      titre: "Choisir un nouveau mot de passe",
+      motDePasse: "Nouveau mot de passe",
+      code: "Code de vérification",
+      aideCode: "Le code à 6 chiffres affiché en ce moment par votre application d'authentification.",
+      bouton: "Changer le mot de passe",
+      // accès à /reinitialisation sans le lien de l'e-mail (revue UX du 8 octobre 2026) : cite l'objet de l'e-mail
+      sansLien:
+      "Pour choisir un nouveau mot de passe, ouvrez le lien de l'e-mail « [LePalier] Choisir un nouveau mot de passe ». Vous ne le trouvez pas ? Faites une nouvelle demande avec « Mot de passe oublié ».",
+    },
+  },
   // repris de libs/commun (erreurs.py, identite.py) pour les cas sans réponse de l'API ; un test vérifie l'égalité
   commun: {
     erreurInattendue: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",

@@ -90,6 +90,11 @@ describe("Activer mon compte : chargement du lien (ADR 0006, maquettes v3 écran
     render(<FormulaireActivation surActivation={vi.fn()} />);
     expect(await screen.findByText(libelle("invitation.lien_invalide"))).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TEXTES.activation.titre);
+    // revue UX (B1) : un compte déjà activé n'a plus besoin du lien ; chemin vers Se connecter
+    expect(screen.getByText(TEXTES.activation.dejaActive)).toBeInTheDocument();
+    const connexion = screen.getByRole("link", { name: TEXTES.connexion.titre });
+    expect(connexion).toHaveAttribute("href", "/connexion");
+    expect(connexion).toHaveClass("bouton-principal");
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByText(TEXTES.activation.avantDeCommencer)).toBeNull();
   });
@@ -102,6 +107,7 @@ describe("Activer mon compte : chargement du lien (ADR 0006, maquettes v3 écran
     expect(await screen.findByText(TEXTES.activation.sansLien)).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TEXTES.activation.titre);
     expect(screen.queryByText(libelle("invitation.lien_invalide"))).toBeNull();
+    expect(screen.getByRole("link", { name: TEXTES.connexion.titre })).toHaveAttribute("href", "/connexion");
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(appel).not.toHaveBeenCalled();
   });
@@ -124,14 +130,18 @@ describe("Activer mon compte : en-tête commun aux trois étapes", () => {
     const autres = screen.getByText(TEXTES.activation.autresApplications);
     expect(autres.tagName).toBe("SUMMARY");
     for (const nom of TEXTES.activation.autresApplicationsListe) expect(screen.getByText(nom)).toBeInTheDocument();
-    expect(screen.getByText(`${TEXTES.activation.adresseDeConnexion} ${DEBUT.email}`)).toBeInTheDocument();
+    expect(screen.getByText(TEXTES.activation.adresseDeConnexion, { exact: false }).closest("p")).toHaveTextContent(
+      `${TEXTES.activation.adresseDeConnexion} ${DEBUT.email}`,
+    );
   });
 
   it("l'en-tête reste aux étapes 2 et 3", async () => {
     api();
     await jusquALEtape3();
     expect(screen.getByText(TEXTES.activation.avantDeCommencer)).toBeInTheDocument();
-    expect(screen.getByText(`${TEXTES.activation.adresseDeConnexion} ${DEBUT.email}`)).toBeInTheDocument();
+    expect(screen.getByText(TEXTES.activation.adresseDeConnexion, { exact: false }).closest("p")).toHaveTextContent(
+      `${TEXTES.activation.adresseDeConnexion} ${DEBUT.email}`,
+    );
   });
 });
 

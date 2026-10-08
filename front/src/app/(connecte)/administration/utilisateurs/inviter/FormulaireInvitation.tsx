@@ -6,6 +6,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Actions } from "@/components/ui/Actions";
+import { AdresseEmail } from "@/components/ui/AdresseEmail";
 import { Bandeau } from "@/components/ui/Bandeau";
 import { BoiteDeConfirmation } from "@/components/ui/BoiteDeConfirmation";
 import { Bouton } from "@/components/ui/Bouton";
@@ -16,7 +17,7 @@ import { LienBouton } from "@/components/ui/LienBouton";
 import { ValeurEnGrand } from "@/components/ui/ValeurEnGrand";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
-import { remplir } from "@/lib/modele";
+import { remplir, remplirAvec } from "@/lib/modele";
 import { reprendreSession } from "@/lib/navigation";
 import { emailValide, nomAfficheValide } from "@/lib/saisie";
 import type { Role } from "@/lib/session";
@@ -165,7 +166,9 @@ export function FormulaireInvitation() {
         surConfirmer={inviter}
         surAnnuler={() => setConfirmation(false)}
       >
-        <ValeurEnGrand>{remplir(I.confirmation.adresse, { adresse: adresse.trim() })}</ValeurEnGrand>
+        <ValeurEnGrand>
+          {remplirAvec(I.confirmation.adresse, { adresse: <AdresseEmail seule>{adresse.trim()}</AdresseEmail> })}
+        </ValeurEnGrand>
         <p>{remplir(I.confirmation.role, description(role))}</p>
         <p>{I.confirmation.validite}</p>
       </BoiteDeConfirmation>

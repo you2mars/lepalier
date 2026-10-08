@@ -4,6 +4,7 @@
 // réussite, pour qu'un rechargement (au retour de l'App Store, par exemple) reprenne l'activation ; il n'en est
 // retiré qu'à ce moment-là. Les trois étapes restent dans la mémoire de la page ; rien n'est stocké ailleurs.
 import { useEffect, useRef, useState } from "react";
+import { AdresseEmail } from "@/components/ui/AdresseEmail";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
 import { BoutonLien } from "@/components/ui/BoutonLien";
@@ -15,6 +16,7 @@ import { Depliant } from "@/components/ui/Depliant";
 import { Encadre } from "@/components/ui/Encadre";
 import { LienBouton } from "@/components/ui/LienBouton";
 import { Squelette } from "@/components/ui/Squelette";
+import { SurEcranTactile } from "@/components/ui/SurEcranTactile";
 import { Formulaire } from "@/components/ui/Formulaire";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
@@ -179,11 +181,20 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
     }
   }
 
+  // revue UX (B1) : jamais d'impasse, un chemin vers Se connecter
+  const versConnexion = (
+    <p>
+      <LienBouton href="/connexion" variante="principal">
+        {TEXTES.connexion.titre}
+      </LienBouton>
+    </p>
+  );
   if (phase === "sansJeton") {
     return (
       <>
         <h1>{T.titre}</h1>
         <p>{T.sansLien}</p>
+        {versConnexion}
       </>
     );
   }
@@ -192,6 +203,8 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
       <>
         <Bandeau etat="attention" message={libelle("invitation.lien_invalide")} />
         <h1>{T.titre}</h1>
+        <p>{T.dejaActive}</p>
+        {versConnexion}
       </>
     );
   }
@@ -225,7 +238,9 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
           </ul>
         </Depliant>
       </Encadre>
-      <p>{`${T.adresseDeConnexion} ${debut.email}`}</p>
+      <p>
+        {T.adresseDeConnexion} <AdresseEmail>{debut.email}</AdresseEmail>
+      </p>
       <h2 ref={titreEtape} tabIndex={-1}>
         {T.etapes[etape]}
       </h2>
@@ -293,10 +308,13 @@ export function FormulaireActivation({ surActivation }: { surActivation: (active
             <li>{T.consigneTelephone}</li>
             <li>{T.consigneOrdinateur}</li>
           </ul>
-          <p>
-            <LienBouton href={debut.uri_otpauth}>{T.ajouter}</LienBouton>
-          </p>
-          <p>{T.rienNeSouvre}</p>
+          {/* revue UX (M2) : sur un poste à souris, ce lien ne pourrait rien ouvrir */}
+          <SurEcranTactile>
+            <p>
+              <LienBouton href={debut.uri_otpauth}>{T.ajouter}</LienBouton>
+            </p>
+            <p>{T.rienNeSouvre}</p>
+          </SurEcranTactile>
           <CodeQr valeur={debut.uri_otpauth} alt={T.altQr} />
           <p>{T.cleManuelle}</p>
           <CleARecopier groupes={groupes} />

@@ -1,7 +1,6 @@
 "use client";
 // Se connecter (maquettes v3, écran 1 ; R0-01, R0-24) : adresse et mot de passe, un seul bouton principal ;
 // le chemin de retour, contrôlé, suit jusqu'à l'écran du code.
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
@@ -9,6 +8,7 @@ import { Bouton } from "@/components/ui/Bouton";
 import { Champ } from "@/components/ui/Champ";
 import { ChampMotDePasse } from "@/components/ui/ChampMotDePasse";
 import { Formulaire } from "@/components/ui/Formulaire";
+import { Lien } from "@/components/ui/Lien";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
 import { cheminDeRetour } from "@/lib/retour";
@@ -96,7 +96,7 @@ export function FormulaireConnexion({ motif, retour }: { motif?: string | null; 
         <Bouton envoiEnCours={envoiEnCours}>{TEXTES.connexion.bouton}</Bouton>
       </Formulaire>
       <p>
-        <Link href="/mot-de-passe-oublie">{TEXTES.connexion.oublie}</Link>
+        <Lien href="/mot-de-passe-oublie">{TEXTES.connexion.oublie}</Lien>
       </p>
     </>
   );

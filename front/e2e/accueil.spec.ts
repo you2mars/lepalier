@@ -37,7 +37,7 @@ test.describe("Accueil « À faire »", () => {
     await expect(menu.getByRole("link", { name: TEXTES.cadre.administration })).toBeVisible();
     await verifierAccessibilite(page);
     await sansDefilementHorizontal(page);
-    for (const cible of await page.locator("button, nav a").all()) {
+    for (const cible of await page.locator("button, nav a, a.lien").filter({ visible: true }).all()) {
       const boite = await cible.boundingBox();
       expect(boite?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
