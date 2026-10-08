@@ -166,6 +166,17 @@ export function compteVise(genre: "cible" | "invite" | "role" | "quitte", projet
   return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${genre}-${projet}`);
 }
 
+// compte et lien de réinitialisation de l'écran 9, un par projet
+export function reinitialisation(projet: string): { email: string; secret: string; jeton: string } {
+  const liens = JSON.parse(process.env.LEPALIER_E2E_REINITIALISATIONS ?? "{}") as Record<
+    string,
+    { email: string; secret: string; jeton: string }
+  >;
+  const lien = liens[projet];
+  if (!lien) throw new Error(`lien de réinitialisation absent pour le projet ${projet}`);
+  return lien;
+}
+
 // connexion complète : adresse, mot de passe (MOT_DE_PASSE de l'essai), puis code de l'application
 export async function seConnecter(page: Page, email: string, secretHex: string): Promise<void> {
   await page.goto("/connexion");

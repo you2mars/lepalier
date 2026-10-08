@@ -477,6 +477,24 @@ from app.admin import creer_gerant
 from app.db import fabrique
 print(creer_gerant(fabrique(), "{email}", "{nom}", "https://essai.invalide").rsplit("#", 1)[1].strip())
 """
+# lien de réinitialisation du mot de passe, écrit comme le fait l'envoi de l'e-mail (jobs/courriels.py)
+REINITIALISER = """
+from sqlalchemy import func, insert, select
+from app.db import fabrique
+from app.engines import durees
+from app.engines.jetons import empreinte, nouveau_jeton
+from app.models import REINITIALISATION, UTILISATEUR
+from commun.ids import uuid7
+jeton = nouveau_jeton()
+with fabrique()() as s, s.begin():
+    maintenant = s.execute(select(func.now())).scalar_one()
+    uid = s.execute(select(UTILISATEUR.c.id).where(UTILISATEUR.c.email == "{email}")).scalar_one()
+    s.execute(insert(REINITIALISATION).values(
+        id=uuid7(), utilisateur_id=uid, empreinte=empreinte(jeton), cree_le=maintenant,
+        expire_le=durees.expiration_reinitialisation(maintenant),
+    ))
+print(jeton)
+"""
 # un compte par projet Playwright (front/playwright.config.ts) : l'anti-rejeu refuse deux fois un même code
 PROJETS_PLAYWRIGHT = ("ordinateur", "mobile-360")
 
@@ -854,6 +872,28 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
             "secours": [],
             "nom": invitee,
         }
+    # écran 9 : un compte et un lien de réinitialisation par projet (le changement réussi consomme le lien)
+    reinitialisations = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-reinit-{projet}@essai.local"
+        _, secret = _creer_compte(plateforme, email)
+        jeton = plateforme.python(REINITIALISER.format(email=email)).stdout.strip()
+        reinitialisations[projet] = {"email": email, "secret": secret, "jeton": jeton}
+    # captures de la revue UX (si LEPALIER_E2E_CAPTURES) : un compte, une invitation et un lien par projet
+    captures = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-captures-{projet}@essai.local"
+        _, secret = _creer_compte(plateforme, email, nom=f"M. Captures {projet}")
+        invitation = plateforme.python(
+            INVITER.format(email=f"e2e-captures-invite-{projet}@essai.local", nom="Mme Durand")
+        ).stdout.strip()
+        lien = plateforme.python(REINITIALISER.format(email=email)).stdout.strip()
+        captures[projet] = {
+            "email": email,
+            "secret": secret,
+            "invitation": invitation,
+            "reinitialisation": lien,
+        }
     # une invitation par projet : l'activation la consomme
     invitations = {
         projet: plateforme.python(
@@ -882,6 +922,10 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_INVITATIONS": json.dumps(invitations),
         "LEPALIER_E2E_COMPTES_ACCUEIL": json.dumps(comptes_accueil),
         "LEPALIER_E2E_COMPTES_ADMIN": json.dumps(comptes_admin),
+        "LEPALIER_E2E_REINITIALISATIONS": json.dumps(reinitialisations),
+        "LEPALIER_E2E_COMPTES_CAPTURES": json.dumps(captures),
+        # captures de la revue UX, écrites dans le dossier de l'hôte monté (LEPALIER_E2E_RESULTATS_HOTE)
+        "LEPALIER_E2E_CAPTURES": os.environ.get("LEPALIER_E2E_CAPTURES", ""),
         # dossiers du conteneur Playwright, pas de l'hôte
         # dossier parent monté si les résultats sont gardés sur l'hôte : Playwright vide et recrée le sien
         "LEPALIER_E2E_SORTIE": "/tmp/hote/resultats"  # noqa: S108
@@ -914,6 +958,8 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
             "--no-install",
             "playwright",
             "test",
+            # arguments de diagnostic seulement (par exemple --grep … --repeat-each 10) ; vide d'ordinaire
+            *os.environ.get("LEPALIER_E2E_ARGS", "").split(),
         ],
         capture_output=True,
         text=True,
