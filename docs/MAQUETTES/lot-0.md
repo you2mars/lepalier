@@ -179,6 +179,7 @@ Recommencer la connexion               ← lien ⟦NOUVEAU⟧ : retour à l'écr
 Vous n'avez plus votre téléphone ni vos codes de secours ?            ← ⟦NOUVEAU⟧ (B3, texte simple)
 Demandez au gérant de la SCI de réinitialiser votre accès.
 ```
+Mode code de secours : la consigne devient « Saisissez l'un des codes de secours que vous avez notés ou imprimés à l'activation de votre compte. » (revue UX M1, 8 octobre 2026).
 Mode code de secours (après le lien) :
 ```
 Code de secours
@@ -285,7 +286,7 @@ Code à 6 chiffres affiché par l'application                           ← ⟦N
 ```
 - Chargement : `activation/debut` donne le QR, le nom affiché et l'adresse (⟦API⟧, Q6) ; tant que le lien est valable,
   le même secret revient à chaque rechargement (ADR 0006) : la reprise après l'installation fonctionne (B1).
-- Lien expiré, utilisé ou inconnu (410) : la page ne montre que le titre et [libellé : invitation.lien_invalide].
+- Lien expiré, utilisé ou inconnu (410) : la page ne montre que le titre et [libellé : invitation.lien_invalide], puis « Si vous avez déjà activé votre compte, ce lien ne sert plus : connectez-vous avec votre adresse e-mail et votre mot de passe. » et le bouton « Se connecter » (revue UX B1, 8 octobre 2026) ; sans lien, le bouton « Se connecter » aussi.
 - Envoi final : `POST /api/identity/auth/activation/fin`.
   - 422 nom → retour à l'étape 1, message sous le champ : [libellé : nom_affiche.invalide], focus dessus.
   - 422 mot de passe → retour à l'étape 2, message sous le champ : [libellé : mot_de_passe.<motif>], focus dessus.
@@ -526,7 +527,7 @@ Adresse e-mail
 
 Retour à la connexion                                                ← ⟦NOUVEAU⟧ (lien)
 ```
-- Après l'envoi (toujours 202) : le formulaire disparaît, le bandeau affiche [libellé : reinitialisation.demande_envoyee]
+- Après l'envoi (toujours 202) : le formulaire disparaît, « Adresse saisie : {adresse} » et le lien-bouton « Saisir une autre adresse », qui rouvre le formulaire avec l'adresse (revue UX M5, 8 octobre 2026) ; le bandeau affiche [libellé : reinitialisation.demande_envoyee]
   et le lien « Retour à la connexion » reste. Même affichage que le compte existe ou non (ADR 0006).
 - 429 de nginx : bandeau 0.3.
 - Test e2e : demande, e-mail reçu dans Mailpit.
@@ -535,7 +536,7 @@ Retour à la connexion                                                ← ⟦NOU
 
 Décision du 6 octobre 2026 : second champ « Confirmez le mot de passe » sous « Nouveau mot de passe », comme à l'activation (étape 2) ; même vérification, mêmes textes ; après un 422, les deux champs sont vidés.
 
-Jeton lu après `#`, retiré de l'adresse, envoyé en POST à `/api/identity/auth/reinitialisation/fin`.
+Jeton lu après `#` et envoyé en POST à `/api/identity/auth/reinitialisation/fin` ; il reste dans l'adresse jusqu'à la réussite (décision du 8 octobre 2026, comme à l'activation : un rechargement garde le lien), puis il en est retiré. Sans jeton (accès à `/reinitialisation` sans le lien) : « Pour choisir un nouveau mot de passe, ouvrez le lien de l'e-mail « [LePalier] Choisir un nouveau mot de passe ». Vous ne le trouvez pas ? Faites une nouvelle demande avec « Mot de passe oublié ». » et le lien « Mot de passe oublié » (revue UX du 8 octobre 2026 ; objet de l'e-mail vérifié par un test).
 ```
 LePalier
 
