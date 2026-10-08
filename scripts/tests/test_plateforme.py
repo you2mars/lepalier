@@ -926,6 +926,8 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_COMPTES_CAPTURES": json.dumps(captures),
         # captures de la revue UX, écrites dans le dossier de l'hôte monté (LEPALIER_E2E_RESULTATS_HOTE)
         "LEPALIER_E2E_CAPTURES": os.environ.get("LEPALIER_E2E_CAPTURES", ""),
+        # essai de charge (diagnostic : processeur ralenti, écritures suivies d'un changement de page)
+        "LEPALIER_E2E_CHARGE": os.environ.get("LEPALIER_E2E_CHARGE", ""),
         # dossiers du conteneur Playwright, pas de l'hôte
         # dossier parent monté si les résultats sont gardés sur l'hôte : Playwright vide et recrée le sien
         "LEPALIER_E2E_SORTIE": "/tmp/hote/resultats"  # noqa: S108
