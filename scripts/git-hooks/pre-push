@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Hook Git pre-push (règle 9 de CLAUDE.md) : aucun push direct sur main, quelle que soit la branche locale.
-# La protection de branche de GitHub n'est pas disponible pour un dépôt privé sur le plan gratuit : cette
-# discipline est outillée ici. Installé par make hooks (appelé par make doctor).
+# Hook Git pre-push (règles 9 et 10 de CLAUDE.md) : aucun push direct sur main, quelle que soit la branche locale ;
+# puis vérifications rapides (make verifier-avant-push : lint, typage, vitest du front, sans les essais de
+# plateforme), et push refusé si elles échouent. La protection de branche de GitHub n'est pas disponible pour un
+# dépôt privé sur le plan gratuit : cette discipline est outillée ici. Installé par make hooks (appelé par make doctor).
 set -euo pipefail
 while read -r _ref_locale _sha_local ref_distante _sha_distant; do
   if [ "$ref_distante" = "refs/heads/main" ]; then
@@ -10,4 +11,20 @@ while read -r _ref_locale _sha_local ref_distante _sha_distant; do
     exit 1
   fi
 done
+racine="$(git rev-parse --show-toplevel)"
+# ce qui est vérifié doit être ce qui part : aucune modification non commitée ni fichier non suivi (les fichiers
+# ignorés ne comptent pas) ; sinon les vérifications porteraient sur le dossier de travail, pas sur les commits
+if [ -n "$(git -C "$racine" status --porcelain)" ]; then
+  echo "Refusé : il reste des modifications non commitées ou des fichiers non suivis. Les vérifications porteraient sur le dossier de travail, pas sur les commits qui partent. Commitez-les ou mettez-les de côté (git stash -u), puis poussez de nouveau." >&2
+  git -C "$racine" status --short >&2
+  exit 1
+fi
+# dépôt sans cette cible (dépôts d'essai du hook) : rien à vérifier
+if make -C "$racine" -n verifier-avant-push >/dev/null 2>&1; then
+  echo "Vérifications rapides avant le push (lint, typage, vitest du front)…" >&2
+  if ! make -C "$racine" verifier-avant-push >&2; then
+    echo "Refusé : les vérifications rapides ont échoué (make verifier-avant-push). Corrigez, puis poussez de nouveau." >&2
+    exit 1
+  fi
+fi
 exit 0

@@ -74,6 +74,9 @@ typecheck: ## mypy strict sur commun et les moteurs, tsc sur le front
 	@for s in $(SERVICES) ; do if [ -d services/$$s/app/engines ]; then (cd services/$$s && uv run mypy --strict app/engines) || exit 1; fi; done
 	@if [ -f front/package.json ]; then cd front && npx tsc --noEmit; fi
 
+verifier-avant-push: lint typecheck ## Vérifications rapides lancées par le hook pre-push : lint, typage, vitest du front
+	@if [ -f front/package.json ]; then cd front && npx vitest run; fi
+
 audit: ## Audit des dépendances (pip-audit, npm audit) : échec sur une vulnérabilité haute, critique ou de gravité inconnue
 	uv run --project libs/commun --with pip-audit python scripts/audit_python.py libs/commun $(foreach s,$(SERVICES),$(wildcard services/$(s)))
 	@if [ -f front/package-lock.json ]; then cd front && npm audit --audit-level=high; fi
