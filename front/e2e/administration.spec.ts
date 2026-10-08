@@ -2,7 +2,7 @@
 // R0-20 à R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant et un associé par projet.
 import { libelle } from "../src/lib/libelles";
 import { TEXTES } from "../src/textes";
-import { compteAdmin, compteVise, expect, pret, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
+import { attendreAdresse, compteAdmin, compteVise, expect, pret, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
 
 const L = TEXTES.utilisateurs.liste;
 const I = TEXTES.utilisateurs.inviter;
@@ -20,7 +20,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     const compte = compteAdmin("gerant", infos.project.name);
     await page.goto("/");
     await page.getByRole("navigation", { name: TEXTES.cadre.menuPrincipal }).getByRole("link", { name: TEXTES.cadre.administration }).click();
-    await expect(page).toHaveURL(/\/administration\/utilisateurs$/);
+    await attendreAdresse(page, /\/administration\/utilisateurs$/);
     await expect(page).toHaveTitle("Utilisateurs — LePalier");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(L.titre);
     await expect(page.getByRole("navigation", { name: TEXTES.cadre.filAriane })).toContainText(TEXTES.cadre.administration);
@@ -79,7 +79,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     await envoyer.click();
     await boite.getByRole("button", { name: I.envoyer }).click();
 
-    await expect(page).toHaveURL(/\/administration\/utilisateurs\?invitee=/);
+    await attendreAdresse(page, /\/administration\/utilisateurs\?invitee=/);
     await expect(page.getByRole("status")).toContainText(
       `Invitation envoyée à ${nom} (${adresse}). Le lien est valable 7 jours.`,
     );
@@ -157,7 +157,7 @@ test.describe("Administration › Utilisateurs, gérant", () => {
     const boite = page.getByRole("dialog", { name: `Annuler l'invitation de ${invite.nom} ?` });
     await expect(boite.getByRole("button", { name: F.annulerInvitation.garder })).toBeFocused();
     await boite.getByRole("button", { name: F.annulerInvitation.bouton }).click();
-    await expect(page).toHaveURL(/\/administration\/utilisateurs$/);
+    await attendreAdresse(page, /\/administration\/utilisateurs$/);
     await expect(page.getByRole("status")).toContainText(`Invitation de ${invite.nom} annulée.`);
     await expect(page.getByRole("link", { name: `${L.gererAcces} ${L.gererAccesDe} ${invite.nom}` })).toHaveCount(0);
   });
@@ -221,7 +221,7 @@ test.describe("Administration › Utilisateurs, gérant qui quitte son rôle", (
     const boite = page.getByRole("dialog", { name: R.quitterGerant.question });
     await expect(boite).toContainText(R.quitterGerant.explication);
     await boite.getByRole("button", { name: R.quitterGerant.bouton }).click();
-    await expect(page).toHaveURL(/\/\?motif=role_quitte$/);
+    await attendreAdresse(page, /\/\?motif=role_quitte$/);
     await expect(page.getByRole("status")).toContainText(
       "Votre rôle est maintenant Associé. L'Administration n'est plus accessible depuis ce compte.",
     );

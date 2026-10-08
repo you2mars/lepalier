@@ -188,6 +188,20 @@ export async function seConnecter(page: Page, email: string, secretHex: string):
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(TEXTES.accueil.titre);
 }
 
+// Après une écriture suivie d'une navigation : si l'adresse ne change pas, l'échec dit ce que la page affiche
+// (bandeau d'erreur ou de refus) ; sans cela, une panne d'écriture et une navigation perdue se ressemblent.
+export async function attendreAdresse(page: Page, motif: RegExp): Promise<void> {
+  try {
+    await expect(page).toHaveURL(motif);
+  } catch (erreur) {
+    const bandeaux = await page.locator(".bandeau").allTextContents();
+    const boite = await page.locator("dialog[open]").allTextContents();
+    throw new Error(
+      `${(erreur as Error).message}\nBandeaux affichés : ${JSON.stringify(bandeaux)}\nBoîte ouverte : ${JSON.stringify(boite)}`,
+    );
+  }
+}
+
 export async function sansDefilementHorizontal(page: Page): Promise<void> {
   const largeurs = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(largeurs[0]).toBeLessThanOrEqual(largeurs[1]!);
