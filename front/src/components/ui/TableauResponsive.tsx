@@ -1,7 +1,6 @@
 // Liste en tableau (UX-26) : tableau nommé sur ordinateur (7 colonnes au plus) ; sur mobile et sous 48 rem de
 // largeur utile, une carte par ligne (3 informations au plus), dont la carte entière est le lien vers le détail ; tout
 // le contenu de la carte est lu, précédé d'un début masqué à l'écran (« Gérer l'accès de »).
-import Link from "next/link";
 import { Fragment, type ReactNode } from "react";
 import { TexteMasque } from "./TexteMasque";
 
@@ -46,7 +45,7 @@ export function TableauResponsive({
       <ul className="cartes" aria-label={libelle}>
         {lignes.map((ligne) => (
           <li key={ligne.cle}>
-            <Link className="carte" href={ligne.carte.href}>
+            <a className="carte" href={ligne.carte.href}>
               {/* espaces entre les parties : sans eux, le nom lu les collerait ; sans effet sur l'affichage (flex) */}
               <TexteMasque>{ligne.carte.prefixeMasque}</TexteMasque>{" "}
               {ligne.carte.contenu.map((element, i) => (
@@ -54,7 +53,7 @@ export function TableauResponsive({
                   <span className="carte-ligne">{element}</span>{" "}
                 </Fragment>
               ))}
-            </Link>
+            </a>
           </li>
         ))}
       </ul>

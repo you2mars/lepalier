@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BandeauFlash, MessageFlashProvider } from "@/components/cadre/MessageFlash";
@@ -19,13 +19,14 @@ const lireConnecte = vi.fn();
 const GERANT: Personne = { id: "g", email: "gerant@exemple.fr", nom_affiche: "M. Martin", role: "gerant" };
 let personne: Personne | null = GERANT;
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pousser }),
   usePathname: () => FICHE_CHEMIN,
   notFound: () => {
     throw new Error("introuvable");
   },
 }));
+// navigation complète du navigateur (jamais celle du routeur de Next, qui se perd parfois sous charge)
 vi.mock("@/lib/navigation", () => ({
+  allerVers: (adresse: string) => pousser(adresse),
   quitterVers: (adresse: string) => quitterVers(adresse),
   reprendreSession: () => reprendreSession(),
 }));
@@ -64,9 +65,21 @@ function afficher(fiche: Fiche, estMoi = false) {
   );
 }
 
+// fiche chargée en entier après la navigation : elle dit ce qui a été fait (message laissé par l'écran du rôle)
+function arriveeSurLaFiche() {
+  cleanup();
+  render(
+    <MessageFlashProvider>
+      <BandeauFlash />
+    </MessageFlashProvider>,
+  );
+  return screen.getByRole("status");
+}
+
 const enregistrer = () => userEvent.click(screen.getByRole("button", { name: R.enregistrer }));
 
 beforeEach(() => {
+  sessionStorage.clear();
   personne = GERANT;
   pousser.mockReset();
   quitterVers.mockReset();
@@ -127,7 +140,7 @@ describe("Changer le rôle : formulaire", () => {
     await enregistrer();
     expect(appel).not.toHaveBeenCalled();
     expect(pousser).toHaveBeenCalledWith(FICHE_CHEMIN);
-    expect(screen.getByRole("status")).toHaveTextContent("Aucun changement : Mme Durand a déjà le rôle Associé.");
+    expect(arriveeSurLaFiche()).toHaveTextContent("Aucun changement : Mme Durand a déjà le rôle Associé.");
   });
 
   it("autre changement : sans confirmation, PATCH du rôle avec clé d'idempotence ; la fiche dit l'ancien et le nouveau rôle", async () => {
@@ -143,7 +156,7 @@ describe("Changer le rôle : formulaire", () => {
     expect(options.method).toBe("PATCH");
     expect(JSON.parse(options.body as string)).toEqual({ role: "operateur" });
     expect((options.headers as Record<string, string>)["Idempotency-Key"]).toMatch(/^[0-9a-f-]{36}$/);
-    expect(screen.getByRole("status")).toHaveTextContent("Rôle de Mme Durand changé : Opérateur (auparavant Associé).");
+    expect(arriveeSurLaFiche()).toHaveTextContent("Rôle de Mme Durand changé : Opérateur (auparavant Associé).");
   });
 
   it("donner le rôle de gérant : confirmation, focus sur « Annuler » ; « Annuler » ne fait rien", async () => {
@@ -166,7 +179,7 @@ describe("Changer le rôle : formulaire", () => {
     await enregistrer();
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: R.donnerGerant.bouton }));
     await waitFor(() => expect(pousser).toHaveBeenCalledWith(FICHE_CHEMIN));
-    expect(screen.getByRole("status")).toHaveTextContent("Rôle de Mme Durand changé : Gérant (auparavant Associé).");
+    expect(arriveeSurLaFiche()).toHaveTextContent("Rôle de Mme Durand changé : Gérant (auparavant Associé).");
   });
 
   it("quitter soi-même le rôle de gérant : confirmation obligatoire ; puis l'accueil, rechargé pour le menu et le rôle", async () => {

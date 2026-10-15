@@ -7,7 +7,8 @@ import { FormulaireConnexion } from "./FormulaireConnexion";
 import Page, { metadata } from "./page";
 
 const pousser = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pousser }) }));
+// navigation complète du navigateur (jamais celle du routeur de Next, qui se perd parfois sous charge)
+vi.mock("@/lib/navigation", () => ({ allerVers: (adresse: string) => pousser(adresse) }));
 
 function reponse(statut: number, corps: unknown): Response {
   return new Response(JSON.stringify(corps), { status: statut, headers: { "Content-Type": "application/json" } });

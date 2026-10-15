@@ -1,7 +1,6 @@
 "use client";
 // Se connecter (maquettes v3, écran 1 ; R0-01, R0-24) : adresse et mot de passe, un seul bouton principal ;
 // le chemin de retour, contrôlé, suit jusqu'à l'écran du code.
-import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
@@ -11,6 +10,7 @@ import { Formulaire } from "@/components/ui/Formulaire";
 import { Lien } from "@/components/ui/Lien";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
+import { allerVers } from "@/lib/navigation";
 import { cheminDeRetour } from "@/lib/retour";
 import { TEXTES } from "@/textes";
 
@@ -37,7 +37,6 @@ function bandeauArrivee(motif: string | null | undefined): Message | null {
 }
 
 export function FormulaireConnexion({ motif, retour }: { motif?: string | null; retour?: string | null }) {
-  const routeur = useRouter();
   const motDePasseRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
@@ -53,7 +52,7 @@ export function FormulaireConnexion({ motif, retour }: { motif?: string | null; 
     setEnvoiEnCours(false);
     if (resultat.ok) {
       const chemin = cheminDeRetour(retour);
-      routeur.push(chemin === "/" ? "/connexion/code" : `/connexion/code?retour=${encodeURIComponent(chemin)}`);
+      allerVers(chemin === "/" ? "/connexion/code" : `/connexion/code?retour=${encodeURIComponent(chemin)}`);
       return;
     }
     const { statut, erreur } = resultat;

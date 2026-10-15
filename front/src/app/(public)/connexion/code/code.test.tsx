@@ -8,8 +8,9 @@ import Page, { metadata } from "./page";
 
 const remplacer = vi.fn();
 const cookies = new Set<string>();
+// navigation complète du navigateur, la page quittée remplacée dans l'historique
+vi.mock("@/lib/navigation", () => ({ quitterVers: (adresse: string) => remplacer(adresse) }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: remplacer }),
   redirect: (adresse: string) => {
     throw new Error(`redirection ${adresse}`);
   },

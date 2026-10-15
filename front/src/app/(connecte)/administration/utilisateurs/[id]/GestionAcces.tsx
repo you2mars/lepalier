@@ -5,7 +5,7 @@
 // chaque écriture avec sa clé d'idempotence ; bandeau qui dit ce qui s'est passé, puis fiche relue (UX-4).
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
-import { useAnnonce } from "@/components/cadre/MessageFlash";
+import { laisserMessage } from "@/components/cadre/MessageFlash";
 import { Actions } from "@/components/ui/Actions";
 import { AdresseEmail } from "@/components/ui/AdresseEmail";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
@@ -16,7 +16,7 @@ import { envoyer } from "@/lib/api";
 import { dateEnToutesLettres } from "@/lib/format";
 import { libelle } from "@/lib/libelles";
 import { remplir, remplirAvec } from "@/lib/modele";
-import { reprendreSession } from "@/lib/navigation";
+import { allerVers, reprendreSession } from "@/lib/navigation";
 import type { Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
 
@@ -57,7 +57,6 @@ function requete(action: Action, id: string): { chemin: string; methode: "POST" 
 
 export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean }) {
   const routeur = useRouter();
-  const annoncer = useAnnonce();
   const [confirmation, setConfirmation] = useState<Action | null>(null);
   const [enCours, setEnCours] = useState<Action | null>(null);
   const [message, setMessage] = useState<Message | null>(null);
@@ -92,8 +91,8 @@ export function GestionAcces({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean 
       const texte = remplir(F[action].succes, valeurs);
       if (action === "annulerInvitation") {
         // la fiche n'existe plus : la liste dit ce qui a été fait
-        annoncer({ etat: "fait", texte, pour: "/administration/utilisateurs" });
-        routeur.push("/administration/utilisateurs");
+        laisserMessage({ etat: "fait", texte, pour: "/administration/utilisateurs" });
+        allerVers("/administration/utilisateurs");
         return;
       }
       setMessage({ etat: "fait", texte: remplirAvec(F[action].succes, avecAdresse) });

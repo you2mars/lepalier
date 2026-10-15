@@ -2,7 +2,6 @@
 // Choisir un nouveau mot de passe (maquettes v3, écran 9 ; ADR 0006) : le jeton est lu après « # » et reste dans
 // l'adresse jusqu'à la réussite (un rechargement garde le lien, comme à l'activation) ; mot de passe et confirmation
 // (vérifiée par le front seul), code de l'application ou code de secours ; puis Se connecter avec le bandeau.
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
@@ -13,6 +12,7 @@ import { Formulaire } from "@/components/ui/Formulaire";
 import { Squelette } from "@/components/ui/Squelette";
 import { Lien } from "@/components/ui/Lien";
 import { envoyer } from "@/lib/api";
+import { quitterVers } from "@/lib/navigation";
 import { erreurLongueurMotDePasse } from "@/lib/saisie";
 import { TEXTES } from "@/textes";
 
@@ -23,7 +23,6 @@ type Cible = "motDePasse" | "confirmation" | "code";
 type Erreurs = Partial<Record<Cible, string>>;
 
 export function FormulaireReinitialisation() {
-  const routeur = useRouter();
   // lu une fois la page prise en main par le navigateur (le serveur ne voit jamais ce qui suit « # ») ; null : pas
   // encore lu
   const [jeton, setJeton] = useState<string | null>(null);
@@ -74,7 +73,7 @@ export function FormulaireReinitialisation() {
     if (resultat.ok) {
       // le jeton ne sert plus : retiré de l'adresse et de l'historique
       window.history.replaceState(window.history.state, "", window.location.pathname);
-      routeur.replace("/connexion?motif=mot_de_passe_change");
+      quitterVers("/connexion?motif=mot_de_passe_change");
       return;
     }
     const { statut, erreur } = resultat;

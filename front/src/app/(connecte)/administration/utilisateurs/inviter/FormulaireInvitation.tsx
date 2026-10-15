@@ -3,7 +3,6 @@
 // défaut), vérifiés à la sortie du champ ; confirmation récapitulative avant l'envoi (UX-3) ; écriture avec une clé
 // d'idempotence, la même pour chaque nouvel essai d'une même confirmation (UX-22) ; puis la liste, qui dit ce qui a
 // été fait (UX-4, UX-24).
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Actions } from "@/components/ui/Actions";
 import { AdresseEmail } from "@/components/ui/AdresseEmail";
@@ -18,7 +17,7 @@ import { ValeurEnGrand } from "@/components/ui/ValeurEnGrand";
 import { envoyer } from "@/lib/api";
 import { libelle } from "@/lib/libelles";
 import { remplir, remplirAvec } from "@/lib/modele";
-import { reprendreSession } from "@/lib/navigation";
+import { allerVers, reprendreSession } from "@/lib/navigation";
 import { emailValide, nomAfficheValide } from "@/lib/saisie";
 import type { Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
@@ -37,7 +36,6 @@ function description(role: Role): Record<string, string> {
 }
 
 export function FormulaireInvitation() {
-  const routeur = useRouter();
   const champNom = useRef<HTMLInputElement>(null);
   const champAdresse = useRef<HTMLInputElement>(null);
   const [nom, setNom] = useState("");
@@ -84,7 +82,7 @@ export function FormulaireInvitation() {
     );
     setEnvoiEnCours(false);
     if (resultat.ok && resultat.donnees) {
-      routeur.push(`/administration/utilisateurs?invitee=${encodeURIComponent(resultat.donnees.id)}`);
+      allerVers(`/administration/utilisateurs?invitee=${encodeURIComponent(resultat.donnees.id)}`);
       return;
     }
     setConfirmation(false);

@@ -1,6 +1,5 @@
 // Fil d'Ariane des pages profondes (UX-9) : navigation nommée ; lien seulement vers une page qui existe ; la page en
 // cours est signalée (aria-current) et n'est pas un lien.
-import Link from "next/link";
 import { TEXTES } from "@/textes";
 
 export type Etape = { libelle: string; href?: string };
@@ -16,7 +15,7 @@ export function FilAriane({ etapes }: { etapes: Etape[] }) {
               {courante ? (
                 <span aria-current="page">{etape.libelle}</span>
               ) : etape.href ? (
-                <Link href={etape.href}>{etape.libelle}</Link>
+                <a href={etape.href}>{etape.libelle}</a>
               ) : (
                 etape.libelle
               )}

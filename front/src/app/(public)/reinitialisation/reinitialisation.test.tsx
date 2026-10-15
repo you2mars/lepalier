@@ -11,7 +11,8 @@ const M = TEXTES.motDePasse;
 const JETON = "b".repeat(43);
 const MOT_DE_PASSE = "le chat dort sur le toit";
 const remplacer = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: remplacer }) }));
+// navigation complète du navigateur, la page quittée remplacée dans l'historique
+vi.mock("@/lib/navigation", () => ({ quitterVers: (adresse: string) => remplacer(adresse) }));
 
 function reponse(statut: number, corps: unknown = null): Response {
   return corps === null

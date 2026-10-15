@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MessageFlashProvider } from "@/components/cadre/MessageFlash";
+import { laisserMessage, MessageFlashProvider } from "@/components/cadre/MessageFlash";
 import type { Personne } from "@/lib/session";
 import { TEXTES } from "@/textes";
 import Page, { metadata } from "./page";
@@ -49,6 +49,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 beforeEach(() => {
+  sessionStorage.clear();
   personne = GERANT;
   lireConnecte.mockReset();
   lireConnecte.mockResolvedValue({ ok: true, statut: 200, donnees: { utilisateurs: UTILISATEURS } });
@@ -169,19 +170,17 @@ describe("Après une invitation : la liste dit ce qui a été fait (UX-4, UX-24)
   });
 });
 
-describe("Après l'annulation d'une invitation : message laissé par la fiche (mémoire de la page, ni adresse ni stockage)", () => {
-  it("bandeau « Fait » sur la page d'arrivée, même si le bandeau est monté deux fois", async () => {
-    const message = { etat: "fait" as const, texte: "Invitation de Mme Durand annulée.", pour: "/administration/utilisateurs" };
-    const contenu = await Page({ searchParams: Promise.resolve({}) });
-    const { rerender } = render(<MessageFlashProvider initial={message}>{contenu}</MessageFlashProvider>);
+describe("Après l'annulation d'une invitation : message laissé par la fiche (stockage de session de l'onglet)", () => {
+  it("bandeau « Fait » sur la page d'arrivée, chargée en entier ; message effacé une fois lu", async () => {
+    laisserMessage({ etat: "fait", texte: "Invitation de Mme Durand annulée.", pour: "/administration/utilisateurs" });
+    render(<MessageFlashProvider>{await Page({ searchParams: Promise.resolve({}) })}</MessageFlashProvider>);
     expect(screen.getByRole("status")).toHaveTextContent("Invitation de Mme Durand annulée.");
-    rerender(<MessageFlashProvider initial={message}>{await Page({ searchParams: Promise.resolve({}) })}</MessageFlashProvider>);
-    expect(screen.getByRole("status")).toHaveTextContent("Invitation de Mme Durand annulée.");
+    expect(sessionStorage.length).toBe(0);
   });
 
-  it("message annoncé pour une autre page : rien ici", async () => {
-    const message = { etat: "fait" as const, texte: "Autre.", pour: "/ailleurs" };
-    render(<MessageFlashProvider initial={message}>{await Page({ searchParams: Promise.resolve({}) })}</MessageFlashProvider>);
+  it("message laissé pour une autre page : rien ici", async () => {
+    laisserMessage({ etat: "fait", texte: "Autre.", pour: "/ailleurs" });
+    render(<MessageFlashProvider>{await Page({ searchParams: Promise.resolve({}) })}</MessageFlashProvider>);
     expect(screen.queryByRole("status")).toBeNull();
   });
 });

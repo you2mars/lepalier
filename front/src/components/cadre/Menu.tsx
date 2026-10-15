@@ -1,7 +1,6 @@
 "use client";
 // Menu stable (UX-9) : à gauche sur ordinateur, en bas sur mobile et sous 48 rem de largeur utile (zoom 200 %) ;
 // « Administration » pour le gérant seulement ; page en cours signalée (aria-current).
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
@@ -25,9 +24,9 @@ export function Menu({ role }: { role: Role }) {
           const courante = e.prefixe ? chemin === e.prefixe || chemin.startsWith(`${e.prefixe}/`) : chemin === e.href;
           return (
             <li key={e.href}>
-              <Link href={e.href} aria-current={courante ? "page" : undefined}>
+              <a href={e.href} aria-current={courante ? "page" : undefined}>
                 {e.libelle}
-              </Link>
+              </a>
             </li>
           );
         })}

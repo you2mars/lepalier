@@ -1,7 +1,6 @@
 "use client";
 // Code de vérification (maquettes v3, écran 2 ; R0-02, R0-14) : code de l'application ou code de secours, dans
 // un seul champ ; le lien vers le code de secours suit le champ et son erreur (M4), car code.incorrect les cite.
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { Bouton } from "@/components/ui/Bouton";
@@ -10,6 +9,7 @@ import { Champ } from "@/components/ui/Champ";
 import { Formulaire } from "@/components/ui/Formulaire";
 import { Lien } from "@/components/ui/Lien";
 import { envoyer } from "@/lib/api";
+import { quitterVers } from "@/lib/navigation";
 import { adresseConnexion, cheminDeRetour } from "@/lib/retour";
 import { TEXTES } from "@/textes";
 
@@ -20,7 +20,6 @@ type Message = { etat: EtatBandeau; texte: string };
 const RETOUR_A_LA_CONNEXION = new Set(["delai_depasse", "trop_de_codes", "compte_suspendu"]);
 
 export function FormulaireCode({ retour }: { retour?: string | null }) {
-  const routeur = useRouter();
   const champRef = useRef<HTMLInputElement>(null);
   const changementDeMode = useRef(false);
   const [mode, setMode] = useState<Mode>("application");
@@ -48,12 +47,12 @@ export function FormulaireCode({ retour }: { retour?: string | null }) {
     setEnvoiEnCours(false);
     if (resultat.ok) {
       // remplacer : le bouton « Retour » ne ramène pas sur cet écran
-      routeur.replace(cheminDeRetour(retour));
+      quitterVers(cheminDeRetour(retour));
       return;
     }
     const { statut, erreur: refus } = resultat;
     if (RETOUR_A_LA_CONNEXION.has(refus.code)) {
-      routeur.replace(adresseConnexion(refus.code, retour));
+      quitterVers(adresseConnexion(refus.code, retour));
       return;
     }
     if (statut === 401) {

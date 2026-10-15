@@ -20,11 +20,15 @@ const introuvable = vi.fn(() => {
 const GERANT: Personne = { id: "g", email: "gerant@exemple.fr", nom_affiche: "M. Martin", role: "gerant" };
 let personne: Personne | null = GERANT;
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pousser, refresh: rafraichir }),
+  useRouter: () => ({ refresh: rafraichir }),
   usePathname: () => "/administration/utilisateurs/0192-b",
   notFound: () => introuvable(),
 }));
-vi.mock("@/lib/navigation", () => ({ reprendreSession: () => reprendreSession() }));
+// navigation complète du navigateur (jamais celle du routeur de Next, qui se perd parfois sous charge)
+vi.mock("@/lib/navigation", () => ({
+  allerVers: (adresse: string) => pousser(adresse),
+  reprendreSession: () => reprendreSession(),
+}));
 vi.mock("@/lib/session", () => ({
   personneConnectee: async () => personne,
   lireConnecte: (chemin: string) => lireConnecte(chemin),
@@ -77,6 +81,7 @@ const bouton = (nom: string) => screen.getByRole("button", { name: nom });
 const boutons = () => screen.queryAllByRole("button").map((b) => b.textContent);
 
 beforeEach(() => {
+  sessionStorage.clear();
   personne = GERANT;
   pousser.mockReset();
   rafraichir.mockReset();
@@ -236,6 +241,12 @@ describe("Gérer l'accès : actions avec confirmation (UX-3)", () => {
     await userEvent.click(within(boite).getByRole("button", { name: F.annulerInvitation.bouton }));
     await waitFor(() => expect(pousser).toHaveBeenCalledWith("/administration/utilisateurs"));
     expect(appel.mock.calls[0]![0]).toBe("/api/identity/utilisateurs/0192-b/annuler-invitation");
+    // message laissé à la liste, lu par elle à son chargement
+    expect(JSON.parse(sessionStorage.getItem("lepalier.message") as string)).toEqual({
+      etat: "fait",
+      texte: "Invitation de Mme Durand annulée.",
+      pour: "/administration/utilisateurs",
+    });
   });
 });
 

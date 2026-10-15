@@ -12,8 +12,11 @@ const D = TEXTES.descriptionsRoles;
 const pousser = vi.fn();
 const reprendreSession = vi.fn();
 let personne: Personne | null = { id: "g", email: "g@exemple.fr", nom_affiche: "M. Martin", role: "gerant" };
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pousser }) }));
-vi.mock("@/lib/navigation", () => ({ reprendreSession: () => reprendreSession() }));
+// navigation complète du navigateur (jamais celle du routeur de Next, qui se perd parfois sous charge)
+vi.mock("@/lib/navigation", () => ({
+  allerVers: (adresse: string) => pousser(adresse),
+  reprendreSession: () => reprendreSession(),
+}));
 vi.mock("@/lib/session", () => ({ personneConnectee: async () => personne }));
 
 function reponse(statut: number, corps: unknown): Response {

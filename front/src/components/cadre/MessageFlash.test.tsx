@@ -1,50 +1,76 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-import { BandeauFlash, MessageFlashProvider, useAnnonce } from "./MessageFlash";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BandeauFlash, laisserMessage, MessageFlashProvider } from "./MessageFlash";
 
-let chemin = "/administration/utilisateurs/0192-b";
+let chemin = "/administration/utilisateurs";
 vi.mock("next/navigation", () => ({ usePathname: () => chemin }));
 
-function Annonceur() {
-  const annoncer = useAnnonce();
-  return (
-    <button
-      type="button"
-      onClick={() => annoncer({ etat: "fait", texte: "Invitation de Mme Durand annulée.", pour: "/administration/utilisateurs" })}
-    >
-      Annuler
-    </button>
-  );
-}
+const ANNULATION = { etat: "fait" as const, texte: "Invitation de Mme Durand annulée.", pour: "/administration/utilisateurs" };
 
-function Cadre() {
-  return (
+// page chargée en entier par le navigateur (navigation complète) : nouveau cadre, nouvelle mémoire
+function chargerLaPage() {
+  return render(
     <MessageFlashProvider>
-      <Annonceur />
       <BandeauFlash />
-    </MessageFlashProvider>
+    </MessageFlashProvider>,
   );
 }
 
-// Message d'une page à la suivante : annoncé sur la fiche, affiché sur la liste, oublié ailleurs.
+beforeEach(() => {
+  chemin = "/administration/utilisateurs";
+  sessionStorage.clear();
+});
+afterEach(() => vi.restoreAllMocks());
+
+// Message d'une page à la suivante, au travers d'une navigation complète : laissé par la page de départ dans le
+// stockage de session de l'onglet, lu puis effacé par la page d'arrivée.
 describe("MessageFlash", () => {
-  it("annoncé sur la fiche : pas affiché là, gardé ; affiché sur la page d'arrivée ; oublié dès qu'on va ailleurs", async () => {
-    chemin = "/administration/utilisateurs/0192-b";
-    const { rerender } = render(<Cadre />);
-    await userEvent.click(screen.getByRole("button", { name: "Annuler" }));
-    expect(screen.queryByRole("status")).toBeNull();
-
-    chemin = "/administration/utilisateurs";
-    rerender(<Cadre />);
+  it("laissé par la fiche : affiché sur la page d'arrivée, puis effacé (perdu au rechargement)", () => {
+    laisserMessage(ANNULATION);
+    const { unmount } = chargerLaPage();
     expect(screen.getByRole("status")).toHaveTextContent("Invitation de Mme Durand annulée.");
+    expect(sessionStorage.length).toBe(0);
+    unmount();
+    chargerLaPage();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
 
+  it("autre page d'arrivée : rien d'affiché, message effacé", () => {
+    laisserMessage(ANNULATION);
     chemin = "/";
-    rerender(<Cadre />);
+    chargerLaPage();
     expect(screen.queryByRole("status")).toBeNull();
+    expect(sessionStorage.length).toBe(0);
+  });
 
-    chemin = "/administration/utilisateurs";
-    rerender(<Cadre />);
+  it("contenu illisible ou incomplet : rien d'affiché, jamais d'erreur", () => {
+    sessionStorage.setItem("lepalier.message", "{pas du json");
+    const { unmount } = chargerLaPage();
     expect(screen.queryByRole("status")).toBeNull();
+    unmount();
+    sessionStorage.setItem("lepalier.message", JSON.stringify({ etat: "inconnu", texte: 3, pour: chemin }));
+    chargerLaPage();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("stockage refusé par le navigateur : ni le départ ni l'arrivée ne cassent", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("refusé", "SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("refusé", "SecurityError");
+    });
+    expect(() => laisserMessage(ANNULATION)).not.toThrow();
+    chargerLaPage();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("message donné au cadre (essais des écrans) : affiché sur sa page", () => {
+    render(
+      <MessageFlashProvider initial={ANNULATION}>
+        <BandeauFlash />
+      </MessageFlashProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Invitation de Mme Durand annulée.");
   });
 });

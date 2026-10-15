@@ -9,8 +9,9 @@ import Page from "./page";
 
 const T = TEXTES.codes;
 const remplacer = vi.fn();
+// navigation complète du navigateur, la page quittée remplacée dans l'historique
+vi.mock("@/lib/navigation", () => ({ quitterVers: (adresse: string) => remplacer(adresse) }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: remplacer }),
   redirect: (adresse: string) => {
     throw new Error(`redirection ${adresse}`);
   },

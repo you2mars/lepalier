@@ -3,7 +3,6 @@
 // ils ne vivent que dans la mémoire de la page. La case « J'ai noté mes codes » est contrôlée au clic, le bouton
 // reste actif ; tant qu'elle n'est pas cochée, le navigateur avertit avant de quitter ou recharger la page. La feuille
 // imprimée (UX-10) n'existe qu'à l'impression.
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bouton } from "@/components/ui/Bouton";
 import { CaseACocher } from "@/components/ui/CaseACocher";
@@ -12,12 +11,12 @@ import { ListeCodes } from "@/components/ui/ListeCodes";
 import { RappelPermanent } from "@/components/ui/RappelPermanent";
 import { Formulaire } from "@/components/ui/Formulaire";
 import { dateEnToutesLettres } from "@/lib/format";
+import { quitterVers } from "@/lib/navigation";
 import { TEXTES } from "@/textes";
 
 const T = TEXTES.codes;
 
 export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffiche: string }) {
-  const routeur = useRouter();
   const titre = useRef<HTMLHeadingElement>(null);
   const caseRef = useRef<HTMLInputElement>(null);
   const [notes, setNotes] = useState(false);
@@ -48,7 +47,7 @@ export function CodesDeSecours({ codes, nomAffiche }: { codes: string[]; nomAffi
       return;
     }
     // remplacer : le bouton « Retour » ne ramène pas sur les codes
-    routeur.replace("/?motif=compte_active");
+    quitterVers("/?motif=compte_active");
   }
 
   return (

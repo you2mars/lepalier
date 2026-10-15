@@ -3,9 +3,8 @@
 // d'envoyé (A7) ; donner le rôle de gérant à une autre personne, ou quitter soi-même ce rôle : confirmation
 // récapitulative (UX-3) ; autres changements sans confirmation ; écriture avec une clé d'idempotence ; la fiche dit ce
 // qui a été fait ; après avoir quitté soi-même le rôle de gérant, l'accueil est rechargé (menu et rôle à jour).
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useAnnonce } from "@/components/cadre/MessageFlash";
+import { laisserMessage } from "@/components/cadre/MessageFlash";
 import { Actions } from "@/components/ui/Actions";
 import { Bandeau, type EtatBandeau } from "@/components/ui/Bandeau";
 import { BoiteDeConfirmation } from "@/components/ui/BoiteDeConfirmation";
@@ -15,7 +14,7 @@ import { Formulaire } from "@/components/ui/Formulaire";
 import { LienBouton } from "@/components/ui/LienBouton";
 import { envoyer } from "@/lib/api";
 import { remplir } from "@/lib/modele";
-import { quitterVers, reprendreSession } from "@/lib/navigation";
+import { allerVers, quitterVers, reprendreSession } from "@/lib/navigation";
 import type { Role } from "@/lib/session";
 import { TEXTES } from "@/textes";
 import type { Fiche } from "../GestionAcces";
@@ -26,8 +25,6 @@ const ROLES: Role[] = ["associe", "operateur", "gerant"];
 type Confirmation = "donnerGerant" | "quitterGerant";
 
 export function FormulaireRole({ fiche, estMoi }: { fiche: Fiche; estMoi: boolean }) {
-  const routeur = useRouter();
-  const annoncer = useAnnonce();
   const [role, setRole] = useState<Role>(fiche.role);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
@@ -43,8 +40,8 @@ export function FormulaireRole({ fiche, estMoi }: { fiche: Fiche; estMoi: boolea
   }
 
   function retourALaFiche(texte: string) {
-    annoncer({ etat: "fait", texte, pour: cheminFiche });
-    routeur.push(cheminFiche);
+    laisserMessage({ etat: "fait", texte, pour: cheminFiche });
+    allerVers(cheminFiche);
   }
 
   function demander() {
