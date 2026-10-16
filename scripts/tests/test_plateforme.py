@@ -16,6 +16,7 @@ import socket
 import ssl
 import struct
 import subprocess
+import tempfile
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -939,8 +940,13 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "front",
         faux_front=False,
     )
-    # Playwright dans son image : dépôt en lecture seule, uid de l'utilisateur, réseau de l'hôte,
-    # résultats dans le /tmp du conteneur : rien n'est écrit dans le dépôt
+    # Playwright dans son image : dépôt en lecture seule, uid de l'utilisateur, réseau de l'hôte ; résultats
+    # dans LEPALIER_E2E_RESULTATS_HOTE (CI) ou, en local, dans le dossier temporaire de l'hôte ; jamais dans
+    # le dépôt
+    resultats = Path(
+        os.environ.get("LEPALIER_E2E_RESULTATS_HOTE", Path(tempfile.gettempdir()) / "lepalier-playwright")
+    )
+    resultats.mkdir(parents=True, exist_ok=True)
     variables = {
         "LEPALIER_E2E_URL": plateforme.https,
         "LEPALIER_E2E_EMAIL": "e2e@essai.local",
@@ -955,11 +961,11 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
         "LEPALIER_E2E_CAPTURES": os.environ.get("LEPALIER_E2E_CAPTURES", ""),
         # essai de charge (diagnostic : processeur ralenti, écritures suivies d'un changement de page)
         "LEPALIER_E2E_CHARGE": os.environ.get("LEPALIER_E2E_CHARGE", ""),
-        # dossiers du conteneur Playwright, pas de l'hôte
-        # dossier parent monté si les résultats sont gardés sur l'hôte : Playwright vide et recrée le sien
-        "LEPALIER_E2E_SORTIE": "/tmp/hote/resultats"  # noqa: S108
-        if "LEPALIER_E2E_RESULTATS_HOTE" in os.environ
-        else "/tmp/resultats",  # noqa: S108
+        # rejeu d'un essai (diagnostic, aides.ts) : processeur ralenti, session ouverte à chaque essai
+        "LEPALIER_E2E_RALENTI": os.environ.get("LEPALIER_E2E_RALENTI", ""),
+        "LEPALIER_E2E_SESSION_NEUVE": os.environ.get("LEPALIER_E2E_SESSION_NEUVE", ""),
+        # dossier du conteneur Playwright : sous le dossier de l'hôte monté, que Playwright vide et recrée
+        "LEPALIER_E2E_SORTIE": "/tmp/hote/resultats",  # noqa: S108
         "HOME": "/tmp",  # noqa: S108
     }
     r = subprocess.run(
@@ -974,12 +980,9 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
             *[arg for nom, valeur in variables.items() for arg in ("-e", f"{nom}={valeur}")],
             "-v",
             f"{RACINE}:/srv/depot:ro",
-            # résultats (traces, captures) gardés sur l'hôte pour un diagnostic, seulement si demandé
-            *(
-                ["-v", f"{os.environ['LEPALIER_E2E_RESULTATS_HOTE']}:/tmp/hote"]
-                if "LEPALIER_E2E_RESULTATS_HOTE" in os.environ
-                else []
-            ),
+            # résultats (traces des échecs, captures) toujours gardés sur l'hôte, hors du dépôt
+            "-v",
+            f"{resultats}:/tmp/hote",
             "-w",
             "/srv/depot/front",
             IMAGE_PLAYWRIGHT,
@@ -997,7 +1000,9 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
     # sortie complète de Playwright, affichée par pytest en cas d'échec : le premier échec n'est jamais coupé
     print(r.stdout)
     print(r.stderr)
-    assert r.returncode == 0, "essais Playwright en échec : voir la sortie complète ci-dessus"
+    assert r.returncode == 0, (
+        f"essais Playwright en échec : sortie complète ci-dessus, traces dans {resultats}/resultats"
+    )
 
 
 def test_identity_arrete__accueil_indisponible_sans_deconnexion_puis_retour(plateforme: Plateforme) -> None:

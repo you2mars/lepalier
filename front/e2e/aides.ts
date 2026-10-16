@@ -23,6 +23,19 @@ declare global {
 // qui se reconnecterait dans la même fenêtre de 30 s serait refusé (anti-rejeu).
 type RoleAdmin = "gerant" | "associe";
 
+// Diagnostic seulement (vides d'ordinaire) : LEPALIER_E2E_RALENTI=4 ralentit le processeur de Chromium (×4, par le
+// protocole de débogage) sur chaque page, y compris celle qui ouvre une session enregistrée ; LEPALIER_E2E_SESSION_NEUVE=1
+// ouvre la session enregistrée à chaque essai, pour rejouer la connexion avec --repeat-each.
+const RALENTI = Number(process.env.LEPALIER_E2E_RALENTI ?? "0");
+const SESSION_NEUVE = process.env.LEPALIER_E2E_SESSION_NEUVE === "1";
+
+async function ralentir(page: Page): Promise<void> {
+  if (RALENTI > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: RALENTI });
+  }
+}
+
 // page prise en main par React (SignalHydratation) : avant, un clic ou une saisie serait perdu ou défait
 export async function pret(page: Page): Promise<void> {
   await page.locator("html[data-hydrate]").waitFor({ state: "attached" });
@@ -45,15 +58,26 @@ export const test = base.extend<{ violationsCsp: string[]; sessionAdmin: RoleAdm
       if (!adresse.startsWith("about:")) await pret(page);
       return reponse;
     };
+    await ralentir(page);
     await utiliser(page);
   },
   storageState: async ({ sessionAdmin, browser, baseURL, storageState }, utiliser, infos) => {
     if (!sessionAdmin) return utiliser(storageState);
     const compte = compteAdmin(sessionAdmin, infos.project.name);
     const chemin = join(tmpdir(), `lepalier-session-${infos.project.name}-${sessionAdmin}.json`);
-    if (!existsSync(chemin)) {
+    if (SESSION_NEUVE || !existsSync(chemin)) {
       const contexte = await browser.newContext({ baseURL, ignoreHTTPSErrors: true, locale: "fr-FR" });
-      await seConnecter(await contexte.newPage(), compte.email, compte.secret);
+      // contexte hors de la trace de l'essai : sa propre trace, gardée seulement si la connexion échoue
+      await contexte.tracing.start({ screenshots: true, snapshots: true });
+      const page = await contexte.newPage();
+      await ralentir(page);
+      try {
+        await seConnecter(page, compte.email, compte.secret);
+      } catch (erreur) {
+        await contexte.tracing.stop({ path: infos.outputPath("trace-connexion.zip") });
+        throw erreur;
+      }
+      await contexte.tracing.stop();
       await contexte.storageState({ path: chemin });
       await contexte.close();
     }
@@ -190,7 +214,11 @@ export async function seConnecter(page: Page, email: string, secretHex: string):
   await page.getByLabel(TEXTES.connexion.adresse).fill(email);
   await page.getByLabel(TEXTES.connexion.motDePasse, { exact: true }).fill(COMPTE.motDePasse);
   await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
-  await page.getByLabel(TEXTES.code.libelle).fill(await codeNeuf(secretHex));
+  // champ attendu avant le code : codeNeuf peut attendre jusqu'à 30 s le pas TOTP suivant, et un échec doit dire
+  // lequel des deux a manqué
+  const champ = page.getByLabel(TEXTES.code.libelle);
+  await expect(champ).toBeVisible({ timeout: 15000 });
+  await champ.fill(await codeNeuf(secretHex));
   await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(TEXTES.accueil.titre);
 }
