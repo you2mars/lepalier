@@ -1003,6 +1003,14 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
     assert r.returncode == 0, (
         f"essais Playwright en échec : sortie complète ci-dessus, traces dans {resultats}/resultats"
     )
+    # formulaires envoyés avant la prise en main par React (avant-hydratation.spec.ts) : ni marqueur ni mot de
+    # passe dans le journal d'accès de nginx ; lignes des envois natifs affichées
+    journal = plateforme.compose("logs", "--no-log-prefix", "nginx").stdout
+    print(
+        "\n".join(ligne for ligne in journal.splitlines() if '"m":"POST"' in ligne and "/api/" not in ligne)
+    )
+    assert "MARQUEUR" not in journal
+    assert MOT_DE_PASSE not in journal
 
 
 def test_identity_arrete__accueil_indisponible_sans_deconnexion_puis_retour(plateforme: Plateforme) -> None:
