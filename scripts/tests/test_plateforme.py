@@ -6,6 +6,8 @@ locales ; `make test` les ignore. Job CI « plateforme », filtré par chemins.
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -18,12 +20,16 @@ import struct
 import subprocess
 import tempfile
 import time
-from collections.abc import Iterator
+import uuid
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import httpx
+import jsonschema
+import nats
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -589,9 +595,12 @@ def _verify_dans_les_journaux(plateforme: Plateforme, depuis: str) -> int:
 def test_nginx__configuration_valide_et_demarre_sans_les_services_absents(
     plateforme: Plateforme, session: Session
 ) -> None:
-    """N1 : résolveur Docker et adresses en variables ; un service absent donne 502, pas un arrêt de nginx."""
+    """N1 : résolveur Docker et adresses en variables ; un service absent donne 503 au format commun (C5), pas
+    un arrêt de nginx."""
     assert plateforme.compose("exec", "-T", "nginx", "nginx", "-t").returncode == 0
-    assert session.client.get("/api/referentiel/lots").status_code == 502
+    absent = session.client.get("/api/referentiel/lots")
+    assert absent.status_code == 503
+    assert absent.json()["code"] == "service_indisponible"
     assert session.client.get("/api/identity/moi").status_code == 200
 
 
@@ -1116,3 +1125,336 @@ def test_recette_lot0__jeu_cree_dans_identity__invitations_au_nom_du_gerant_puis
     assert second.returncode == 0, second.stdout + second.stderr
     assert "/activation#" not in second.stdout
     assert second.stdout.count("déjà présent") == 3
+
+
+# --- bloc D : chorégraphies d'identity (outbox → NATS JetStream) -------------------------------------------
+# Écritures réelles à travers nginx, services arrêtés puis redémarrés : aucun événement perdu ni en double
+# dans EVT_IDENTITY (TEC-DAT-04, TEC-JOB-08 ; SPEC_TECHNIQUE § 5.6) ; chaque chorégraphie a ses comptes.
+
+FLUX = "EVT_IDENTITY"
+CONTRATS = RACINE / "contracts"
+
+
+@dataclass(frozen=True)
+class Message:
+    seq: int
+    sujet: str
+    id_message: str
+    enveloppe: dict[str, object]
+
+
+@dataclass(frozen=True)
+class Flux:
+    fenetre_dedoublonnage: float
+    messages: list[Message]
+
+    def de(self, agregat: str) -> list[Message]:
+        return [m for m in self.messages if m.enveloppe["aggregate_id"] == agregat]
+
+
+def _flux(plateforme: Plateforme) -> Flux:
+    """Tout le flux EVT_IDENTITY, lu depuis l'hôte (port NATS publié par l'essai)."""
+    url = f"nats://127.0.0.1:{plateforme.port('nats', 4222)}"
+
+    async def lire() -> Flux:
+        client = await nats.connect(url, connect_timeout=5, max_reconnect_attempts=0)
+        try:
+            js = client.jetstream()
+            info = await js.stream_info(FLUX)
+            messages = []
+            for seq in range(info.state.first_seq, info.state.last_seq + 1):
+                brut = await js.get_msg(FLUX, seq=seq)
+                assert brut.headers is not None and brut.data is not None
+                messages.append(
+                    Message(seq, brut.subject, brut.headers["Nats-Msg-Id"], json.loads(brut.data))
+                )
+            return Flux(float(info.config.duplicate_window or 0), messages)
+        finally:
+            await client.close()
+
+    return asyncio.run(lire())
+
+
+def _outbox(plateforme: Plateforme, agregat: str) -> list[tuple[str, str, bool]]:
+    """Lignes d'outbox d'un utilisateur, dans l'ordre : (id, type, relayé)."""
+    sortie = plateforme.compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "admin",
+        "-d",
+        "identity",
+        "-At",
+        "-F",
+        " ",
+        "-c",
+        "SELECT id, type, relaye_le IS NOT NULL FROM outbox"
+        f" WHERE cle_agregat = '{uuid.UUID(agregat)}' ORDER BY id",
+    ).stdout
+    return [(i, t, r == "t") for i, t, r in (ligne.split() for ligne in sortie.splitlines())]
+
+
+def _attendre[T](condition: Callable[[], T], quoi: str, delai: float = 90) -> T:
+    limite = time.monotonic() + delai
+    while True:
+        resultat = condition()
+        if resultat:
+            return resultat
+        assert time.monotonic() < limite, f"toujours pas au bout de {delai} s : {quoi}"
+        time.sleep(1)
+
+
+def _tout_relaye(plateforme: Plateforme, agregat: str, nombre: int) -> list[tuple[str, str, bool]]:
+    def relaye() -> list[tuple[str, str, bool]]:
+        lignes = _outbox(plateforme, agregat)
+        return lignes if len(lignes) == nombre and all(r for _, _, r in lignes) else []
+
+    return _attendre(relaye, f"{nombre} événements relayés pour {agregat}")
+
+
+def _sante(plateforme: Plateforme) -> tuple[int, dict[str, object]]:
+    sortie = plateforme.compose(
+        "exec",
+        "-T",
+        "identity",
+        "curl",
+        "-sS",
+        "-w",
+        "\n%{http_code}",
+        "http://localhost:8000/internal/healthz",
+    ).stdout
+    corps, _, code = sortie.rpartition("\n")
+    return int(code), json.loads(corps)
+
+
+def _ecrire(gerant: Session, methode: str, chemin: str, corps: dict[str, object]) -> httpx.Response:
+    entetes = {"Idempotency-Key": str(uuid.uuid4())}
+    return gerant.client.request(methode, f"/api/identity/utilisateurs{chemin}", json=corps, headers=entetes)
+
+
+def _lien_d_activation(plateforme: Plateforme, email: str) -> str:
+    api = f"http://127.0.0.1:{plateforme.port('mailpit', 8025)}/api/v1"
+
+    def messages() -> list[dict[str, str]]:
+        return list(httpx.get(f"{api}/search", params={"query": f'to:"{email}"'}).json()["messages"])
+
+    (resume,) = _attendre(messages, f"invitation reçue par {email}")
+    texte = httpx.get(f"{api}/message/{resume['ID']}").json()["Text"]
+    trouve = re.search(r"/activation#([A-Za-z0-9_-]{43})", texte)
+    assert trouve, texte
+    return trouve.group(1)
+
+
+def _inviter_et_activer(plateforme: Plateforme, gerant: Session, email: str) -> str:
+    """Invitation par l'API, lien reçu dans mailpit, activation par l'API : utilisateur.cree."""
+    invite = _ecrire(
+        gerant, "POST", "/inviter", {"email": email, "nom_affiche": "Mme Durand", "role": "associe"}
+    )
+    assert invite.status_code == 201, invite.text
+    jeton = _lien_d_activation(plateforme, email)
+    with _client(plateforme) as client:
+        debut = client.post("/api/identity/auth/activation/debut", json={"jeton": jeton})
+        assert debut.status_code == 200, debut.text
+        cle = parse_qs(urlparse(debut.json()["uri_otpauth"]).query)["secret"][0]
+        secret = base64.b32decode(cle + "=" * (-len(cle) % 8))
+        corps = {"jeton": jeton, "mot_de_passe": MOT_DE_PASSE, "code": _code_totp(secret)}
+        fin = client.post("/api/identity/auth/activation/fin", json=corps)
+        assert fin.status_code == 200, fin.text
+    return str(invite.json()["id"])
+
+
+def _modifier(gerant: Session, uid: str, **champs: str) -> None:
+    r = _ecrire(gerant, "PATCH", f"/{uid}", dict(champs))
+    assert r.status_code == 200, r.text
+
+
+def _une_fois_dans_l_ordre(flux: Flux, outbox: list[tuple[str, str, bool]], agregat: str) -> list[str]:
+    """Chaque ligne d'outbox de l'utilisateur = un seul message, dans l'ordre des id ; renvoie les types."""
+    messages = flux.de(agregat)
+    assert [m.id_message for m in messages] == [i for i, _, _ in outbox]
+    assert [m.enveloppe["id"] for m in messages] == [i for i, _, _ in outbox]
+    return [str(m.enveloppe["type"]) for m in messages]
+
+
+@pytest.fixture(scope="module")
+def gerant_choregraphies(plateforme: Plateforme) -> Iterator[Session]:
+    connecte = _connecter(plateforme, "choregraphies@essai.local")
+    yield connecte
+    connecte.client.close()
+
+
+def _reconnecter(plateforme: Plateforme, gerant: Session) -> Session:
+    """Même gérant après un redémarrage : nouvelle session si l'ancienne n'est plus reconnue."""
+    if gerant.client.get("/api/identity/utilisateurs").status_code == 200:
+        return gerant
+    return _connecter(plateforme, f"choregraphies-{uuid.uuid4().hex[:8]}@essai.local")
+
+
+def test_choregraphie__ecritures_de_l_api__un_message_par_evenement_dans_l_ordre_conforme_au_contrat(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C1 : activation, changement de rôle, suspension, réactivation ; enveloppe et payload conformes aux
+    schémas de contracts/."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c1@essai.local")
+    _modifier(gerant_choregraphies, uid, role="operateur")
+    _modifier(gerant_choregraphies, uid, statut="suspendu")
+    _modifier(gerant_choregraphies, uid, statut="actif")
+    outbox = _tout_relaye(plateforme, uid, 4)
+    flux = _flux(plateforme)
+    types = _une_fois_dans_l_ordre(flux, outbox, uid)
+    assert types == [
+        "utilisateur.cree",
+        "utilisateur.role_change",
+        "utilisateur.suspendu",
+        "utilisateur.reactive",
+    ]
+    enveloppe = json.loads((CONTRATS / "enveloppe.schema.json").read_text())
+    for m in flux.de(uid):
+        fait = str(m.enveloppe["type"]).split(".")[1]
+        assert m.sujet == f"evt.identity.utilisateur.{fait}.v1"
+        jsonschema.validate(m.enveloppe, enveloppe)
+        contrat = json.loads((CONTRATS / "events" / "utilisateur" / f"{fait}.v1.json").read_text())
+        jsonschema.validate(m.enveloppe["payload"], contrat)
+        assert m.enveloppe["producer"] == "identity"
+
+
+def test_choregraphie__crash_entre_publication_et_marquage__republication_ecartee_par_jetstream(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C4 : marquage perdu (relaye_le remis à vide) ; le worker republie, JetStream écarte le doublon (même
+    Nats-Msg-Id, dans la fenêtre de dédoublonnage d'une heure du flux)."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c4@essai.local")
+    ((evenement, _, _),) = _tout_relaye(plateforme, uid, 1)
+    avant = _flux(plateforme)
+    assert avant.fenetre_dedoublonnage == 3600
+    plateforme.compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "admin",
+        "-d",
+        "identity",
+        "-c",
+        f"UPDATE outbox SET relaye_le = NULL WHERE id = '{uuid.UUID(evenement)}'",
+    )
+    _tout_relaye(plateforme, uid, 1)
+    apres = _flux(plateforme)
+    assert [m.id_message for m in apres.de(uid)] == [evenement]
+    assert len(apres.messages) == len(avant.messages)
+
+
+def test_choregraphie__nats_arrete__ecritures_acceptees_gardees_puis_relayees_sans_doublon(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C2 : NATS arrêté, l'API accepte les écritures, l'outbox les garde et /internal/healthz le signale ;
+    au retour de NATS, tout est relayé dans l'ordre, une seule fois ; les messages d'avant l'arrêt restent."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c2@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    avant = _flux(plateforme)
+    plateforme.compose("stop", "nats")
+    try:
+        _modifier(gerant_choregraphies, uid, role="operateur")
+        _modifier(gerant_choregraphies, uid, statut="suspendu")
+        _modifier(gerant_choregraphies, uid, statut="actif")
+        time.sleep(6)  # au moins deux tours du worker (toutes les 2 s) : rien ne doit partir
+        assert [r for _, _, r in _outbox(plateforme, uid)] == [True, False, False, False]
+        code, sante = _sante(plateforme)
+        assert code == 200
+        assert int(str(sante["outbox_en_attente"])) >= 3
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "nats")
+    outbox = _tout_relaye(plateforme, uid, 4)
+    apres = _flux(plateforme)
+    assert apres.messages[: len(avant.messages)] == avant.messages
+    types = _une_fois_dans_l_ordre(apres, outbox, uid)
+    assert types == [
+        "utilisateur.cree",
+        "utilisateur.role_change",
+        "utilisateur.suspendu",
+        "utilisateur.reactive",
+    ]
+
+
+def test_choregraphie__identity_tue_avec_un_evenement_en_attente__relaye_une_fois_au_redemarrage(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C3 : identity tué (SIGKILL) juste après une écriture. NATS est arrêté pendant l'écriture pour que
+    l'événement soit sûrement en attente au moment du kill ; au redémarrage, il part une fois."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c3@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    plateforme.compose("stop", "nats")
+    try:
+        _modifier(gerant_choregraphies, uid, statut="suspendu")
+        assert [r for _, _, r in _outbox(plateforme, uid)] == [True, False]
+        plateforme.compose("kill", "identity")
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "nats")
+        plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "identity")
+    outbox = _tout_relaye(plateforme, uid, 2)
+    types = _une_fois_dans_l_ordre(_flux(plateforme), outbox, uid)
+    assert types == ["utilisateur.cree", "utilisateur.suspendu"]
+
+
+def _erreur_commune_sans_detail_technique(r: httpx.Response) -> None:
+    assert r.status_code >= 500, (r.status_code, r.text[:300])
+    assert r.headers.get("content-type", "").startswith("application/json"), (r.status_code, r.text[:300])
+    assert set(r.json()) == {"code", "message", "details", "trace_id"}, r.text
+    for mot in ("psycopg", "sqlalchemy", "postgres", "traceback", "operationalerror", "connection"):
+        assert mot not in r.text.lower(), r.text
+
+
+def test_choregraphie__postgresql_arrete__ecritures_refusees_au_format_commun_puis_reprise_sans_perte(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C5 : base arrêtée, une écriture est refusée au format d'erreur commun, sans détail technique, que la
+    vérification d'identité de nginx soit en cache (10 s) ou non ; /internal/healthz signale la panne. Au
+    retour de la base, le worker reprend seul : l'écriture suivante est relayée, les refusées sans trace."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c5@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    assert gerant_choregraphies.client.get("/api/identity/utilisateurs").status_code == 200  # cache de nginx
+    plateforme.compose("stop", "postgres")
+    try:
+        _erreur_commune_sans_detail_technique(
+            _ecrire(gerant_choregraphies, "PATCH", f"/{uid}", {"role": "operateur"})
+        )
+        time.sleep(11)  # vérification d'identité sortie du cache de nginx
+        _erreur_commune_sans_detail_technique(
+            _ecrire(gerant_choregraphies, "PATCH", f"/{uid}", {"role": "operateur"})
+        )
+        code, sante = _sante(plateforme)
+        assert (code, sante["base"], sante["status"]) == (503, "ko", "ko")
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "postgres")
+    _attendre(
+        lambda: _sante(plateforme)[1].get("worker") == "ok", "worker de nouveau vu par /internal/healthz"
+    )
+    _modifier(gerant_choregraphies, uid, statut="suspendu")
+    outbox = _tout_relaye(plateforme, uid, 2)
+    types = _une_fois_dans_l_ordre(_flux(plateforme), outbox, uid)
+    assert types == ["utilisateur.cree", "utilisateur.suspendu"]
+
+
+def test_choregraphie__plateforme_arretee_puis_redemarree__flux_et_outbox_gardes_sans_doublon(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C6 : arrêt complet (docker compose stop) puis redémarrage : flux et outbox inchangés, aucun message
+    republié ; une nouvelle écriture est relayée une fois."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c6@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    avant = _flux(plateforme)
+    plateforme.compose("stop")
+    _demarrer(plateforme)
+    _attendre(lambda: _sante(plateforme)[1].get("worker") == "ok", "worker vu par /internal/healthz")
+    time.sleep(6)  # quelques tours du worker : rien ne doit être republié
+    assert _flux(plateforme).messages == avant.messages
+    gerant = _reconnecter(plateforme, gerant_choregraphies)
+    _modifier(gerant, uid, statut="suspendu")
+    outbox = _tout_relaye(plateforme, uid, 2)
+    apres = _flux(plateforme)
+    assert apres.messages[: len(avant.messages)] == avant.messages
+    assert len(apres.messages) == len(avant.messages) + 1
+    assert _une_fois_dans_l_ordre(apres, outbox, uid) == ["utilisateur.cree", "utilisateur.suspendu"]
