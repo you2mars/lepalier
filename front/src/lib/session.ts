@@ -28,3 +28,12 @@ export const personneConnectee = cache(async (): Promise<Personne | null> => {
   const moi = await lireConnecte<Personne>("/identity/moi");
   return moi.ok ? moi.donnees : null;
 });
+
+// Page introuvable (constat UX (5)) : le cadre connecté si la session est valide, sinon le cadre public ; jamais de
+// redirection vers Se connecter, une adresse inconnue n'est pas une page connectée.
+export async function personneSiConnectee(): Promise<Personne | null> {
+  const session = (await cookies()).get("lp_session")?.value;
+  if (!session) return null;
+  const moi = await lire<Personne>("/identity/moi", session);
+  return moi.ok ? moi.donnees : null;
+}

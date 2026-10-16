@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { lireConnecte, personneConnectee } from "./session";
+import { lireConnecte, personneConnectee, personneSiConnectee } from "./session";
 
 // Personne connectée, lue par le BFF dans /moi (identity) ; après un 401, retour à Se connecter avec le bon
 // bandeau (etat-session) et la page demandée (maquettes v3, § 0.3).
@@ -123,5 +123,24 @@ describe("lireConnecte (lectures d'un écran connecté)", () => {
       "redirection /connexion?retour=%2Fadministration%2Futilisateurs",
     );
     expect(appel).not.toHaveBeenCalled();
+  });
+});
+
+describe("personneSiConnectee (page introuvable : jamais de redirection)", () => {
+  it("session valide : la personne", async () => {
+    api({ "/api/identity/moi": reponse(200, MOI) });
+    expect(await personneSiConnectee()).toEqual(MOI);
+  });
+
+  it("sans cookie : null, aucun appel", async () => {
+    cookies.clear();
+    const appel = api({});
+    expect(await personneSiConnectee()).toBeNull();
+    expect(appel).not.toHaveBeenCalled();
+  });
+
+  it.each([401, 503])("refus %i : null, sans redirection vers Se connecter", async (statut) => {
+    api({ "/api/identity/moi": reponse(statut, {}) });
+    expect(await personneSiConnectee()).toBeNull();
   });
 });
