@@ -59,6 +59,11 @@ describe("Choisir un nouveau mot de passe : écran (maquettes v3, écran 9 ; ADR
     expect(screen.getByText(TEXTES.code.sansTelephone)).toBeInTheDocument();
   });
 
+  it("« Retour à la connexion » sous le formulaire, vers Se connecter (constat UX (14))", () => {
+    render(<FormulaireReinitialisation />);
+    expect(screen.getByRole("link", { name: TEXTES.reinitialisation.demande.retour })).toHaveAttribute("href", "/connexion");
+  });
+
   it("« Utiliser un code de secours » : même bascule qu'à l'écran du code", async () => {
     render(<FormulaireReinitialisation />);
     await userEvent.click(screen.getByRole("button", { name: TEXTES.code.utiliserSecours }));
@@ -74,6 +79,7 @@ describe("Choisir un nouveau mot de passe : écran (maquettes v3, écran 9 ; ADR
     render(<FormulaireReinitialisation />);
     expect(screen.getByText(C.sansLien)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: TEXTES.connexion.oublie })).toHaveAttribute("href", "/mot-de-passe-oublie");
+    expect(screen.getByRole("link", { name: TEXTES.reinitialisation.demande.retour })).toHaveAttribute("href", "/connexion");
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 });
@@ -156,6 +162,7 @@ describe("Choisir un nouveau mot de passe : envoi", () => {
     expect(await screen.findByText(libelle(cle))).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.getByRole("link", { name: TEXTES.connexion.oublie })).toHaveAttribute("href", "/mot-de-passe-oublie");
+    expect(screen.getByRole("link", { name: TEXTES.reinitialisation.demande.retour })).toHaveAttribute("href", "/connexion");
   });
 
   it("trop d'essais (429) : bandeau « Attention »", async () => {

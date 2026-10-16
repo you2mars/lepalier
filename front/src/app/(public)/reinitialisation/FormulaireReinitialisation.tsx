@@ -97,6 +97,12 @@ export function FormulaireReinitialisation() {
       <Lien href="/mot-de-passe-oublie">{TEXTES.connexion.oublie}</Lien>
     </p>
   );
+  // constat UX (14) : chemin de retour vers Se connecter sur chaque état de l'écran
+  const lienRetour = (
+    <p>
+      <Lien href="/connexion">{TEXTES.reinitialisation.demande.retour}</Lien>
+    </p>
+  );
   if (jeton === null) {
     return (
       <>
@@ -112,6 +118,7 @@ export function FormulaireReinitialisation() {
         <h1>{C.titre}</h1>
         {fin ? null : <p>{C.sansLien}</p>}
         {lienOubli}
+        {lienRetour}
       </>
     );
   }
@@ -171,6 +178,7 @@ export function FormulaireReinitialisation() {
         <Bouton envoiEnCours={envoiEnCours}>{C.bouton}</Bouton>
       </Formulaire>
       <p>{TEXTES.code.sansTelephone}</p>
+      {lienRetour}
     </>
   );
 }
