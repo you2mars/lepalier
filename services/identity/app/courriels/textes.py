@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from app.libelles import libelle_role
-from commun.dates import date_heure_paris
+from commun.dates import PARIS, date_heure_paris
 
 
 @dataclass(frozen=True)
@@ -42,15 +42,22 @@ def nouvel_appareil(nom_affiche: str, instant: datetime, role: str) -> Courriel:
 
 
 def alerte_echecs(nom_gerant: str, nom_affiche: str, debut: datetime, instant: datetime) -> Courriel:
-    """`debut` : premier des échecs comptés dans l'heure ; `instant` : celui qui a atteint le seuil."""
+    """`debut` : premier des échecs comptés dans l'heure ; `instant` : celui qui a atteint le seuil. Une heure
+    qui passe minuit porte deux dates, la seconde sans l'année si c'est la même."""
     date, h1 = date_heure_paris(debut)
-    _, h2 = date_heure_paris(instant)
+    date2, h2 = date_heure_paris(instant)
+    if date2 == date:
+        quand = f"le {date} entre {h1} et {h2}"
+    else:
+        annee = f" {debut.astimezone(PARIS).year}"
+        fin = date2.removesuffix(annee) if date2.endswith(annee) else date2
+        quand = f"entre le {date} à {h1} et le {fin} à {h2}"
     return Courriel(
         objet="[LePalier] Nombreux essais de connexion sur un compte",
         corps=(
             f"Bonjour {nom_gerant},\n"
             "Au moins 20 essais de connexion ont échoué en une heure sur le compte de "
-            f"{nom_affiche}, le {date} entre {h1} et {h2}.\n"
+            f"{nom_affiche}, {quand}.\n"
             f"Ces essais viennent peut-être d'une autre personne. Vérifiez avec {nom_affiche} et, si besoin, "
             "suspendez son accès dans Administration, Utilisateurs."
         ),
@@ -75,8 +82,9 @@ def invitation(nom_affiche: str, nom_gerant: str, role: str, lien: str, expire_l
         objet="[LePalier] Votre invitation",
         corps=(
             f"Bonjour {nom_affiche},\n"
-            f"{nom_gerant} vous invite à utiliser LePalier avec le rôle {libelle_role(role)}, "
-            "l'application de gestion de l'immeuble de la SCI.\n"
+            f"{nom_gerant} vous invite à utiliser LePalier, "
+            "l'application de gestion de l'immeuble de la SCI, "
+            f"avec le rôle {libelle_role(role)}.\n"
             "Pour créer votre accès, ouvrez ce lien et suivez les étapes à l'écran. Prévoyez 5 minutes et "
             f"gardez votre téléphone à portée de main : {lien}\n"
             f"{_valable('7 jours', expire_le)} Si vous n'attendiez pas cette invitation, ignorez ce message."

@@ -67,6 +67,30 @@ def test_courriel_alerte_echecs__mot_pour_mot() -> None:
     )
 
 
+def test_courriel_alerte_echecs__heure_qui_passe_minuit__deux_dates__mot_pour_mot() -> None:
+    # lundi 19 octobre 2026 à 23 h 40 et mardi 20 octobre à 0 h 20, heure de Paris (UTC+2)
+    debut = datetime(2026, 10, 19, 21, 40, tzinfo=UTC)
+    assert alerte_echecs("M. Martin", "Mme Durand", debut, debut + timedelta(minutes=40)) == Courriel(
+        objet="[LePalier] Nombreux essais de connexion sur un compte",
+        corps=(
+            "Bonjour M. Martin,\n"
+            "Au moins 20 essais de connexion ont échoué en une heure sur le compte de Mme Durand, "
+            "entre le lundi 19 octobre 2026 à 23 h 40 et le mardi 20 octobre à 0 h 20.\n"
+            "Ces essais viennent peut-être d'une autre personne. Vérifiez avec Mme Durand et, si besoin, "
+            "suspendez son accès dans Administration, Utilisateurs."
+        ),
+    )
+
+
+def test_courriel_alerte_echecs__heure_qui_passe_le_nouvel_an__annee_aux_deux_dates() -> None:
+    debut = datetime(2026, 12, 31, 22, 50, tzinfo=UTC)  # 23 h 50 à Paris (UTC+1)
+    courriel = alerte_echecs("M. Martin", "Mme Durand", debut, debut + timedelta(minutes=30))
+    assert (
+        "entre le jeudi 31 décembre 2026 à 23 h 50 et le vendredi 1er janvier 2027 à 0 h 20.\n"
+        in courriel.corps
+    )
+
+
 def test_courriel_alerte_compte_suspendu__mot_pour_mot() -> None:
     assert alerte_compte_suspendu("M. Martin", "Mme Durand", ETE) == Courriel(
         objet="[LePalier] Connexion d'un compte suspendu",
@@ -85,8 +109,8 @@ def test_courriel_invitation__mot_pour_mot() -> None:
         objet="[LePalier] Votre invitation",
         corps=(
             "Bonjour Mme Durand,\n"
-            "M. Martin vous invite à utiliser LePalier avec le rôle Associé, l'application de gestion de "
-            "l'immeuble de la SCI.\n"
+            "M. Martin vous invite à utiliser LePalier, l'application de gestion de l'immeuble de la SCI, "
+            "avec le rôle Associé.\n"
             "Pour créer votre accès, ouvrez ce lien et suivez les étapes à l'écran. Prévoyez 5 minutes et "
             f"gardez votre téléphone à portée de main : {lien}\n"
             "Ce lien est valable 7 jours, jusqu'au jeudi 22 octobre 2026 à 14 h 05. "
@@ -100,7 +124,7 @@ def test_courriel_invitation__mot_pour_mot() -> None:
 )
 def test_courriel_invitation__role_en_mots_de_contracts_libelles(role: str, libelle: str) -> None:
     courriel = invitation("Mme Durand", "M. Martin", role, "https://lepalier.essai/activation#jeton", ETE)
-    assert f"vous invite à utiliser LePalier avec le rôle {libelle}, " in courriel.corps
+    assert f"de l'immeuble de la SCI, avec le rôle {libelle}.\n" in courriel.corps
 
 
 def test_courriel_invitation__fin_du_lien_a_l_heure_de_paris_en_hiver() -> None:
