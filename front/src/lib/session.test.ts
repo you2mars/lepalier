@@ -86,6 +86,11 @@ describe("personneConnectee", () => {
     api({ "/api/identity/moi": reponse(502, {}) });
     expect(await personneConnectee()).toBeNull();
   });
+
+  it("503 au format commun de nginx (base d'identity arrêtée) : null comme pour un 502", async () => {
+    api({ "/api/identity/moi": reponse(503, { code: "service_indisponible" }) });
+    expect(await personneConnectee()).toBeNull();
+  });
 });
 
 describe("lireConnecte (lectures d'un écran connecté)", () => {

@@ -39,6 +39,11 @@ describe("lire", () => {
     expect(await lire("/identity/moi", "j")).toEqual({ ok: false, statut: 0 });
   });
 
+  it.each([502, 503])("panne %i de nginx : même résultat, statut transmis tel quel", async (statut) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(statut, { code: "service_indisponible" })));
+    expect(await lire("/identity/moi", "j")).toEqual({ ok: false, statut });
+  });
+
   it("service qui ne répond pas : abandon après le délai, traité comme une panne", async () => {
     vi.stubGlobal(
       "fetch",

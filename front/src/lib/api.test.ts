@@ -60,4 +60,21 @@ describe("envoyer (écritures depuis le navigateur, via nginx)", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
     expect(await envoyer("/identity/auth/connexion", {})).toEqual({ ok: false, statut: 0, erreur: attendu });
   });
+
+  it("503 JSON de nginx (vérification d'identité en échec, service absent) : même message affiché qu'un 502", async () => {
+    // corps de @indisponible (deploy/nginx/reponses_json.conf)
+    const indisponible = {
+      code: "service_indisponible",
+      message: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",
+      details: {},
+      trace_id: "t",
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(502, "<html>", "text/html")));
+    const r502 = await envoyer("/identity/utilisateurs/inviter", {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(503, indisponible)));
+    const r503 = await envoyer("/identity/utilisateurs/inviter", {});
+    if (r502.ok || r503.ok) throw new Error("réussite inattendue");
+    expect(r503.erreur.message).toBe(r502.erreur.message);
+    expect(r503.erreur.champs).toEqual(r502.erreur.champs);
+  });
 });
