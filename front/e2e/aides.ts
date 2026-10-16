@@ -210,10 +210,18 @@ export function reinitialisation(projet: string): { email: string; secret: strin
 
 // connexion complète : adresse, mot de passe (MOT_DE_PASSE de l'essai), puis code de l'application
 export async function seConnecter(page: Page, email: string, secretHex: string): Promise<void> {
+  // pret après chaque nouveau document (la page d'une session enregistrée n'a pas le goto qui l'appelle) : un
+  // formulaire envoyé avant la prise en main part tel quel au navigateur, qui recharge la même page champs vidés
+  // (avant-hydratation.spec.ts)
   await page.goto("/connexion");
+  await pret(page);
   await page.getByLabel(TEXTES.connexion.adresse).fill(email);
   await page.getByLabel(TEXTES.connexion.motDePasse, { exact: true }).fill(COMPTE.motDePasse);
   await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
+  // écran du code : nouveau document (navigation complète) ; adresse attendue avant pret, sinon pret trouverait
+  // encore la page quittée
+  await page.waitForURL(/\/connexion\/code/, { timeout: 15000 });
+  await pret(page);
   // champ attendu avant le code : codeNeuf peut attendre jusqu'à 30 s le pas TOTP suivant, et un échec doit dire
   // lequel des deux a manqué
   const champ = page.getByLabel(TEXTES.code.libelle);
