@@ -52,5 +52,10 @@
     "actif": "Accès actif",
     "suspendu": "Accès suspendu",
     "invitation_expiree": "Invitation expirée"
+  },
+  "role": {
+    "gerant": "Gérant",
+    "associe": "Associé",
+    "operateur": "Opérateur"
   }
 }

@@ -1,5 +1,7 @@
 // Textes du front validés le 6 octobre 2026 (maquettes v3, N1 à N27), écrits une seule fois ici et vérifiés
 // mot pour mot par textes.test.ts. Les libellés d'identity viennent de lib/libelles.ts, jamais d'ici.
+import { libelle } from "@/lib/libelles";
+
 export const TEXTES = {
   application: "LePalier",
   etats: { fait: "Fait", attention: "Attention", erreur: "Erreur" },
@@ -104,7 +106,8 @@ export const TEXTES = {
     menuPrincipal: "Menu principal",
     filAriane: "Fil d'Ariane",
   },
-  roles: { gerant: "Gérant", associe: "Associé", operateur: "Opérateur" },
+  // rôles en mots, écrits dans contracts/libelles/identity.json (repris par l'e-mail d'invitation)
+  roles: { gerant: libelle("role.gerant"), associe: libelle("role.associe"), operateur: libelle("role.operateur") },
   // une seule description par rôle (Q5), reprise telle quelle aux boutons radio, en confirmation et au changement de rôle
   descriptionsRoles: {
     associe:

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.engines.mot_de_passe import Motif
-from app.libelles import libelles, message, message_mot_de_passe
+from app.libelles import libelle_role, libelles, message, message_mot_de_passe
 from app.settings import settings
 
 MESSAGES = {
@@ -153,6 +153,21 @@ def test_message__statut_en_mots__mot_pour_mot(cle: str) -> None:
     assert "!" not in message(cle)
 
 
+# rôles en mots (e-mail d'invitation, écrans du front), validés le 16 octobre 2026
+ROLES = {"role.gerant": "Gérant", "role.associe": "Associé", "role.operateur": "Opérateur"}
+ROLES_DU_CONTRAT = json.loads((settings.libelles_dir.parent / "enums.json").read_text())["role"]
+
+
+@pytest.mark.parametrize("cle", sorted(ROLES))
+def test_message__role_en_mots__mot_pour_mot(cle: str) -> None:
+    assert message(cle) == ROLES[cle]
+
+
+def test_libelle_role__un_libelle_par_role_de_contracts_enums() -> None:
+    assert set(libelles()["role"]) == set(ROLES_DU_CONTRAT)
+    assert libelle_role("associe") == "Associé"
+
+
 @pytest.mark.parametrize("cle", sorted(AUTRES_MESSAGES))
 def test_message__parcours_de_compte__mot_pour_mot(cle: str) -> None:
     assert message(cle) == AUTRES_MESSAGES[cle]
@@ -173,10 +188,10 @@ def test_libelles__aucune_cle_en_double_dans_le_fichier() -> None:
     assert doublons == []
 
 
-def test_libelles__34_messages_tous_verifies_mot_pour_mot() -> None:
-    attendues = {f"mot_de_passe.{m.value}" for m in Motif} | set(AUTRES_MESSAGES) | set(STATUTS)
+def test_libelles__37_messages_tous_verifies_mot_pour_mot() -> None:
+    attendues = {f"mot_de_passe.{m.value}" for m in Motif} | set(AUTRES_MESSAGES) | set(STATUTS) | set(ROLES)
     assert _toutes_les_cles() == attendues
-    assert len(attendues) == 34
+    assert len(attendues) == 37
 
 
 @pytest.mark.parametrize("cle", sorted(AUTRES_MESSAGES))
@@ -248,8 +263,9 @@ FONCTIONS_LIBELLES = {"message", "refuser"}
 
 def _cles_utilisees_par_le_code() -> set[str]:
     """Chaînes « groupe.nom » passées à une fonction de FONCTIONS_LIBELLES dans app/, plus les clés tirées de
-    Motif ; les actions du journal (« connexion.reussie ») ne sont pas des libellés."""
-    cles = {f"mot_de_passe.{m.value}" for m in Motif}
+    Motif et des rôles (libelle_role) ; les actions du journal (« connexion.reussie ») ne sont pas des
+    libellés."""
+    cles = {f"mot_de_passe.{m.value}" for m in Motif} | {f"role.{r}" for r in ROLES_DU_CONTRAT}
     for fichier in APP.rglob("*.py"):
         for noeud in ast.walk(ast.parse(fichier.read_text())):
             if (
