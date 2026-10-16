@@ -42,7 +42,9 @@ def demander(fabrique: Fabrique, email: str, ip: str) -> None:
         u = (
             s.execute(
                 select(UTILISATEUR.c.id, UTILISATEUR.c.statut)
-                .where(func.lower(UTILISATEUR.c.email) == email.strip().lower())
+                .where(
+                    func.lower(UTILISATEUR.c.email) == email.strip().lower(), UTILISATEUR.c.statut != "annule"
+                )
                 .with_for_update()
             )
             .mappings()

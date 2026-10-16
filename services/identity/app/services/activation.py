@@ -98,6 +98,8 @@ def debut(fabrique: Fabrique, jeton: str, cles: ClesCompte) -> dict[str, str]:
         return {
             "uri_otpauth": totp.uri_provisionnement(secret, u["nom_affiche"]),
             "nom_affiche": u["nom_affiche"],
+            # adresse de connexion affichée, et identifiant pour le gestionnaire de mots de passe
+            "email": u["email"],
         }
 
 

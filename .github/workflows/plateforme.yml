@@ -10,6 +10,12 @@ on:
       - ".dockerignore"
       - "Makefile"
       - "scripts/tests/test_plateforme.py"
+      # code des images (outbox, worker, routes) : chorégraphies d'identity
+      - "services/**"
+      - "libs/**"
+      - "scripts/tests/plateforme/**"
+      - "front/**"
+      - "contracts/libelles/**"
       - ".github/workflows/plateforme.yml"
 permissions:
   contents: read
@@ -20,5 +26,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-      - name: Images locales puis essais (app-base, services, Compose, nginx)
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Dépendances du front (Playwright les lit dans le dépôt monté)
+        run: cd front && npm ci
+      - name: Dossier des résultats Playwright (traces et captures, gardés en cas d'échec)
+        run: mkdir -p "$RUNNER_TEMP/playwright" && chmod 777 "$RUNNER_TEMP/playwright"
+      - name: Images locales puis essais (app-base, services, front, Compose, nginx, Playwright)
+        env:
+          LEPALIER_E2E_RESULTATS_HOTE: ${{ runner.temp }}/playwright
         run: make test-plateforme
+      # traces Playwright pour diagnostiquer un échec ; elles contiennent des cookies de session et des clés TOTP
+      # de comptes d'essai (plateforme jetable) : conservation courte, jamais sur une réussite
+      - name: Résultats Playwright en cas d'échec (7 jours)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultats-playwright
+          path: ${{ runner.temp }}/playwright/resultats
+          retention-days: 7
+          if-no-files-found: ignore

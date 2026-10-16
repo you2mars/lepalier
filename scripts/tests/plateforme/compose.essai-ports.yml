@@ -1,0 +1,11 @@
+# Ports publiés du projet d'essai lepalier-essai (make test-plateforme), choisis par Docker et lus par
+# docker compose port : tirés à l'avance par l'essai, deux pouvaient tomber sur le même numéro (« port is already
+# allocated », 15 octobre 2026). Inclus dans toutes les commandes de l'essai, avec ou sans le faux front. Le port
+# HTTPS reste tiré par l'essai : l'adresse publique qui le contient est donnée à identity avant le démarrage.
+services:
+  postgres:
+    ports: !override ["127.0.0.1::5432"]
+  nats:
+    ports: !override ["127.0.0.1::4222", "127.0.0.1::8222"]
+  mailpit:
+    ports: !override ["127.0.0.1::8025", "127.0.0.1::1025"]

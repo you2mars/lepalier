@@ -14,6 +14,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import func, insert, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -46,7 +47,9 @@ def inviter(fabrique: Fabrique, par: UUID, email: str, nom_affiche: str, role: s
     try:
         with fabrique() as s, s.begin():
             existe = s.execute(
-                select(UTILISATEUR.c.id).where(func.lower(UTILISATEUR.c.email) == email.lower())
+                select(UTILISATEUR.c.id).where(
+                    func.lower(UTILISATEUR.c.email) == email.lower(), UTILISATEUR.c.statut != "annule"
+                )
             ).first()
             if existe is not None:
                 raise deja_utilise
@@ -83,7 +86,7 @@ def renvoyer_invitation(fabrique: Fabrique, par: UUID, utilisateur_id: UUID, ip:
         statut = s.execute(
             select(UTILISATEUR.c.statut).where(UTILISATEUR.c.id == utilisateur_id).with_for_update()
         ).scalar()
-        if statut is None:
+        if statut is None or statut == "annule":
             raise HTTPException(404)
         if statut != "invite":
             raise refuser(409, "deja_activee", "invitation.deja_activee")
@@ -128,14 +131,38 @@ def _invitations_en_cours(s: Session) -> set[UUID]:
     return set(s.execute(liens).scalars()) | {UUID(i) for i in s.execute(envois).scalars()}
 
 
-def _fiche(u: Any, en_cours: set[UUID]) -> dict[str, Any]:
+@dataclass(frozen=True)
+class Invitations:
+    """Comptes dont l'invitation est en cours, et dates du dernier lien envoyé à chaque compte invité."""
+
+    en_cours: set[UUID]
+    derniers_liens: dict[UUID, tuple[datetime, datetime]]
+
+
+def _invitations(s: Session) -> Invitations:
+    derniers = (
+        select(INVITATION.c.utilisateur_id, INVITATION.c.cree_le, INVITATION.c.expire_le)
+        .ext(distinct_on(INVITATION.c.utilisateur_id))
+        .order_by(INVITATION.c.utilisateur_id, INVITATION.c.cree_le.desc())
+    )
+    return Invitations(
+        en_cours=_invitations_en_cours(s),
+        derniers_liens={uid: (cree_le, expire_le) for uid, cree_le, expire_le in s.execute(derniers).all()},
+    )
+
+
+def _fiche(u: Any, invitations: Invitations) -> dict[str, Any]:
+    """Une personne, comme dans la liste et sa fiche ; dates du dernier lien pour un compte invité."""
+    lien = invitations.derniers_liens.get(u["id"]) if u["statut"] == "invite" else None
     return {
         "id": str(u["id"]),
         "email": u["email"],
         "nom_affiche": u["nom_affiche"],
         "role": u["role"],
         "statut": u["statut"],
-        "statut_libelle": libelle_statut(u["statut"], u["id"] in en_cours),
+        "statut_libelle": libelle_statut(u["statut"], u["id"] in invitations.en_cours),
+        "invitation_envoyee_le": lien[0].isoformat() if lien else None,
+        "invitation_expire_le": lien[1].isoformat() if lien else None,
     }
 
 
@@ -156,11 +183,18 @@ def moi(fabrique: Fabrique, utilisateur_id: UUID) -> dict[str, Any]:
 
 def lister(fabrique: Fabrique) -> list[dict[str, Any]]:
     with fabrique() as s:
-        lignes = s.execute(select(UTILISATEUR)).mappings().all()
-        en_cours = _invitations_en_cours(s)
-    return [
-        _fiche(u, en_cours) for u in sorted(lignes, key=lambda u: (u["nom_affiche"].casefold(), str(u["id"])))
-    ]
+        lignes = s.execute(select(UTILISATEUR).where(UTILISATEUR.c.statut != "annule")).mappings().all()
+        invitations = _invitations(s)
+    tries = sorted(lignes, key=lambda u: (u["nom_affiche"].casefold(), str(u["id"])))
+    return [_fiche(u, invitations) for u in tries]
+
+
+def consulter(fabrique: Fabrique, utilisateur_id: UUID) -> dict[str, Any]:
+    with fabrique() as s:
+        u = s.execute(select(UTILISATEUR).where(UTILISATEUR.c.id == utilisateur_id)).mappings().first()
+        if u is None or u["statut"] == "annule":
+            raise HTTPException(404)
+        return _fiche(u, _invitations(s))
 
 
 # --- modification (rôle, suspension, réactivation) -----------------------------------------------------
@@ -183,7 +217,7 @@ def _verrouiller(s: Session, utilisateur_id: UUID) -> tuple[list[UUID], Any]:
         .mappings()
         .first()
     )
-    if u is None:
+    if u is None or u["statut"] == "annule":
         raise HTTPException(404)
     return gerants, u
 
@@ -236,7 +270,7 @@ def modifier(
             fait = "suspendu" if suspendre else "reactive"
             _journaliser(s, fait, u["id"], par, {"statut": u["statut"]}, {"statut": nouveau_statut}, ip)
             publier(s, fait, apres, par, maintenant)
-        return _fiche(apres, _invitations_en_cours(s))
+        return _fiche(apres, _invitations(s))
 
 
 def _journaliser(
@@ -310,4 +344,25 @@ def reinitialiser_acces(fabrique: Fabrique, par: UUID, utilisateur_id: UUID, ip:
             "courriel.acces_reinitialise",
             str(uuid7()),
             payload={"utilisateur_id": u["id"], "par_utilisateur_id": par},
+        )
+
+
+# --- annulation d'une invitation (Q7, migration 0006) ----------------------------------------------------
+
+
+def annuler_invitation(fabrique: Fabrique, par: UUID, utilisateur_id: UUID, ip: str | None) -> None:
+    """Invitation envoyée par erreur : lien invalidé, compte au statut `annule` (jamais supprimé), retiré de
+    la liste ; l'adresse peut être invitée de nouveau. Aucun événement : un invité n'a jamais été publié."""
+    with fabrique() as s, s.begin():
+        statut = s.execute(
+            select(UTILISATEUR.c.statut).where(UTILISATEUR.c.id == utilisateur_id).with_for_update()
+        ).scalar()
+        if statut is None or statut == "annule":
+            raise HTTPException(404)
+        if statut != "invite":
+            raise refuser(409, "annulation_impossible", "invitation.annulation_impossible")
+        s.execute(update(UTILISATEUR).where(UTILISATEUR.c.id == utilisateur_id).values(statut="annule"))
+        invalider_invitations(s, utilisateur_id)
+        _journaliser(
+            s, "invitation_annulee", utilisateur_id, par, {"statut": "invite"}, {"statut": "annule"}, ip
         )

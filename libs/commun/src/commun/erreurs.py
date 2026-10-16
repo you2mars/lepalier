@@ -16,6 +16,8 @@ from starlette.types import Scope
 from commun.trace import trace_id_courant
 
 MESSAGE_INTERNE = "Une erreur inattendue est survenue. Réessayez dans quelques instants."
+# service injoignable (503 de nginx sur /api/) : l'écriture a pu avoir lieu, rien n'affirme le contraire
+MESSAGE_INDISPONIBLE = "Le service est momentanément indisponible. Réessayez dans un instant."
 MESSAGE_VALIDATION = "Certaines informations sont incorrectes. Corrigez les champs signalés."
 
 _HTTP: dict[int, tuple[str, str]] = {

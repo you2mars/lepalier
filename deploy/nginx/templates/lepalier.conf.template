@@ -1,3 +1,8 @@
+# Limite de débit de /api/identity/auth/ (ADR 0006, N13) : 10 par minute en vrai (compose.dev.yml, valeur écrite
+# explicitement), plus haute pour les seuls essais de la plateforme (compose.essai.yml) ; aucune valeur par défaut :
+# sans LEPALIER_LIMITE_AUTH, nginx refuse de démarrer.
+limit_req_zone $binary_remote_addr zone=auth:10m rate=${LEPALIER_LIMITE_AUTH};
+
 # Serveur LePalier (dev). ${LEPALIER_WIREGUARD} : sous-réseau WireGuard autorisé sur /ops (valeur définitive au lot 2).
 server {
   listen 443 ssl;
@@ -10,36 +15,9 @@ server {
   add_header Referrer-Policy no-referrer always;
   add_header X-Frame-Options DENY always;
 
-  # Réponses de nginx au même format que commun : {code, message, details, trace_id}
-  location @non_authentifie {
-    default_type application/json;
-    return 401 "{\"code\":\"unauthenticated\",\"message\":\"Votre session a expiré ou n'est pas reconnue. Reconnectez-vous.\",\"details\":{},\"trace_id\":\"$request_id\"}";
-  }
-  location @trop_de_requetes {
-    default_type application/json;
-    return 429 "{\"code\":\"trop_de_requetes\",\"message\":\"Trop de demandes en peu de temps. Patientez une minute, puis réessayez.\",\"details\":{},\"trace_id\":\"$request_id\"}";
-  }
-  location @introuvable {
-    default_type application/json;
-    return 404 "{\"code\":\"not_found\",\"message\":\"Cette page ou cette information n'existe pas.\",\"details\":{},\"trace_id\":\"$request_id\"}";
-  }
+  include /etc/nginx/reponses_json.conf;
 
-  # Vérification d'identité, pour nginx seul (auth_request) ; jamais joignable de l'extérieur
-  location = /_auth {
-    internal;
-    set $identity identity:8000;
-    proxy_pass http://$identity/auth/verify;
-    proxy_pass_request_body off;
-    proxy_set_header Content-Length "";
-    proxy_set_header Cookie $http_cookie;
-    proxy_set_header X-Request-Id $request_id;
-    proxy_cache cache_auth;
-    proxy_cache_key $cookie_lp_session;
-    proxy_cache_valid 200 10s;
-    proxy_cache_bypass $sans_session;
-    proxy_no_cache $sans_session;
-    proxy_ignore_headers Cache-Control Expires Set-Cookie;
-  }
+  include /etc/nginx/verification_identite.conf;
   location = /api/identity/auth/verify { try_files /introuvable @introuvable; }
   location /internal/ { try_files /introuvable @introuvable; }
   location ~ ^/api/[^/]+/internal/ { try_files /introuvable @introuvable; }
@@ -56,36 +34,7 @@ server {
   }
 
   location /api/ {
-    auth_request /_auth;
-    auth_request_set $uid $upstream_http_x_user_id;
-    auth_request_set $role $upstream_http_x_role;
-    auth_request_set $sig $upstream_http_x_auth_sig;
-    auth_request_set $exp $upstream_http_x_auth_exp;
-    error_page 401 = @non_authentifie;
-    error_page 429 = @trop_de_requetes;
-    limit_req zone=api burst=40;
-    include /etc/nginx/proxy_common.conf;
-    proxy_set_header X-User-Id $uid;
-    proxy_set_header X-Role $role;
-    proxy_set_header X-Auth-Sig $sig;
-    proxy_set_header X-Auth-Exp $exp;
-    # en premier : les expressions régulières imbriquées passent avant celles du niveau serveur
-    location ~ ^/api/[^/]+/internal/ {
-      auth_request off;
-      try_files /introuvable @introuvable;
-    }
-    location /api/documents/files {
-      client_max_body_size 50m;
-      proxy_request_buffering off;
-      set $amont documents:8000;
-      rewrite ^/api/documents/(.*)$ /$1 break;
-      proxy_pass http://$amont;
-    }
-    location ~ ^/api/(identity|referentiel|facturation|charges-eau|documents|envois|veille|reporting)/ {
-      set $amont $1:8000;
-      rewrite ^/api/[^/]+/(.*)$ /$1 break;
-      proxy_pass http://$amont;
-    }
+    include /etc/nginx/api_services.conf;
   }
 
   # Supervision (Grafana au lot 2) : réseau WireGuard seulement (TEC-SEC-18)
@@ -110,6 +59,34 @@ server {
     internal;
     root /usr/share/nginx/maintenance;
   }
+}
+
+# Écoute interne du BFF (front côté serveur) : lectures seulement (GET, HEAD) de /api/*, avec la même vérification
+# d'identité et le même vidage des en-têtes ; jamais /api/identity/auth/* (seule exception : GET etat-session,
+# ci-dessous) ni /internal/* ; port jamais publié.
+server {
+  listen 8081;
+  # au niveau du serveur, avant le choix de la location : un if dans location /api/ ne s'appliquerait pas aux
+  # locations imbriquées (routage des services) ; une écriture ne passe jamais par cette écoute
+  if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+  include /etc/nginx/reponses_json.conf;
+  include /etc/nginx/verification_identite.conf;
+  location /api/identity/auth/ { try_files /introuvable @introuvable; }
+  # Seule exception dans /api/identity/auth/ (ADR 0006) : après un 401, le BFF demande à identity si la session a
+  # été coupée par une suspension. Route en lecture seule, qui ne pose aucun cookie et ne révèle au détenteur du
+  # cookie que « suspendu ou non ». Adresse exacte ; les écritures restent refusées (405) par la règle du serveur.
+  location = /api/identity/auth/etat-session {
+    include /etc/nginx/proxy_common.conf;
+    include /etc/nginx/entetes_identite_vides.conf;
+    set $identity identity:8000;
+    proxy_pass http://$identity/auth/etat-session;
+  }
+  location /internal/ { try_files /introuvable @introuvable; }
+  location ~ ^/api/[^/]+/internal/ { try_files /introuvable @introuvable; }
+  location /api/ {
+    include /etc/nginx/api_services.conf;
+  }
+  location / { try_files /introuvable @introuvable; }
 }
 
 # Vérification de santé de Compose : port interne au conteneur, jamais publié

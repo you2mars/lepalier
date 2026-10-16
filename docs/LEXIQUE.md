@@ -4,6 +4,8 @@ Nom de l'application : **LePalier** (un seul mot, majuscules à L et P, à l'éc
 
 Règle : un seul mot par concept, le même partout (écran, PDF, e-mail, code). Le terme « interface » est celui que voient les utilisateurs ; le terme « code » est celui des tables, événements et routes.
 
+À l'écran, le contenu vient de la spec, les mots viennent du lexique.
+
 | Interface (ce que l'utilisateur lit) | Code | Ne pas utiliser |
 | --- | --- | --- |
 | Appartement | `lot` | lot (à l'écran), unité, bien |
@@ -30,13 +32,33 @@ Règle : un seul mot par concept, le même partout (écran, PDF, e-mail, code). 
 | Associé | rôle `associe` | actionnaire, partenaire |
 | Gérant | rôle `gerant` | administrateur, admin |
 | Opérateur | rôle `operateur` | saisisseur, assistant |
+| Compte | `utilisateur` (la personne enregistrée : adresse, nom affiché, rôle) | profil, membre |
+| Accès | statut d'un compte (`actif`, `suspendu`) et ses réinitialisations : le droit de se connecter | autorisation, droits (à l'écran) |
+| Utilisateurs | liste des comptes (`/utilisateurs`) | membres, comptes (titre de page) |
+| Nom affiché | `nom_affiche` | pseudo, identifiant |
+| Invitation | `invitation` (lien envoyé par e-mail, 7 jours) | enrôlement, convocation |
+| Application d'authentification | second facteur TOTP | authentificateur, appli 2FA, TOTP (à l'écran) |
+| Code de vérification | code TOTP à 6 chiffres | OTP, code 2FA, jeton |
+| Code de secours | `code_secours` | code de récupération, code de sauvegarde |
+| Clé | clé de l'application d'authentification, saisie à la main si le code ne se scanne pas | secret, seed, code (réservé au code de vérification) |
+| Mot de passe | `mot_de_passe` (12 caractères au moins, phrase conseillée) | mdp, code secret, password |
+| Mot de passe oublié | lien et écran `/mot-de-passe-oublie` | Réinitialiser le mot de passe (à l'écran : « réinitialiser » est réservé à l'action du gérant « Réinitialiser l'accès »), Récupérer son compte |
+| Se connecter | bouton et écran `/connexion` | Connexion (sur un bouton), S'identifier, Login |
+| Administration | menu du gérant (`/administration`) | admin, paramètres, réglages |
+| Se déconnecter | bouton (`/auth/deconnexion`) | Déconnexion (sur un bouton), Quitter, Logout |
+| Page réservée au gérant | page montrée à un associé ou un opérateur (refus 403) | Accès refusé, Interdit, Erreur 403 |
+| Gérer l'accès | lien vers la fiche d'une personne | Éditer, Modifier l'utilisateur |
 | Enregistrer | bouton principal des formulaires | Valider, Soumettre, OK, Submit |
 | Annuler (ne rien changer) | bouton secondaire | Retour, Fermer |
 | Marquer comme payé | action sur un loyer du mois | Valider le paiement |
 
 Statuts affichés d'un loyer du mois : « À venir », « Avis envoyé », « Payé en partie », « Payé », « En retard », « Quittance envoyée », « Annulé ».
 
-Statuts affichés d'un compte utilisateur (`contracts/libelles/identity.json`, groupe `statut`) : « Invitation envoyée » (statut `invite`, lien valable ou e-mail d'invitation en attente d'envoi), « Invitation expirée » (statut `invite` sans lien valable), « Accès actif » (`actif`), « Accès suspendu » (`suspendu`).
+Compte ou accès : on active un compte ; on suspend, réactive ou réinitialise un accès ; on invite une personne et on annule une invitation.
+
+Rôles affichés (`contracts/libelles/identity.json`, groupe `role`) : « Gérant », « Associé », « Opérateur », repris tels quels à l'écran et dans l'e-mail d'invitation.
+
+Statuts affichés d'un compte utilisateur (`contracts/libelles/identity.json`, groupe `statut`) : « Invitation envoyée » (statut `invite`, lien valable ou e-mail d'invitation en attente d'envoi), « Invitation expirée » (statut `invite` sans lien valable), « Accès actif » (`actif`), « Accès suspendu » (`suspendu`). Une invitation annulée (`annule`) n'est jamais affichée : la personne disparaît de la liste.
 
 Formats : montants `1 234,56 €` (espace insécable, virgule) ; dates longues « lundi 3 novembre 2026 » dans les textes, `03/11/2026` dans les tableaux ; périodes « novembre 2026 ».
 

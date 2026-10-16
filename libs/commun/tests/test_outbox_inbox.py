@@ -16,7 +16,7 @@ from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 from commun.enveloppe import Enveloppe, nouvelle_enveloppe
 from commun.ids import uuid7
 from commun.inbox import Inbox, consommer_message
-from commun.outbox import Outbox, PublieurJetStream, assurer_flux, nom_flux
+from commun.outbox import FENETRE_DEDOUBLONNAGE, Outbox, PublieurJetStream, assurer_flux, nom_flux
 
 from .conftest import EFFET, INBOX, OUTBOX
 
@@ -73,8 +73,26 @@ def requetes_sur_la_boucle(moteur: Engine) -> Iterator[list[bool]]:
 
 @dataclass
 class PublieurAnnule:
+    annule_au_appel: int = 1
+    appels: int = 0
+
     async def publier(self, sujet: str, donnees: bytes, id_message: str) -> None:
-        raise asyncio.CancelledError
+        self.appels += 1
+        if self.appels == self.annule_au_appel:
+            raise asyncio.CancelledError
+
+
+@dataclass
+class PublieurTemoin:
+    """Relève, avant chaque publication, combien d'événements sont marqués vus depuis une autre session."""
+
+    fabrique: sessionmaker[Session]
+    marques_vus: list[int] = field(default_factory=list)
+
+    async def publier(self, sujet: str, donnees: bytes, id_message: str) -> None:
+        self.marques_vus.append(
+            await asyncio.to_thread(_compter, self.fabrique, OUTBOX, OUTBOX.c.relaye_le.is_not(None))
+        )
 
 
 # --- outbox ---------------------------------------------------------------------------------------
@@ -132,6 +150,28 @@ async def test_relayer__arret_du_worker_pendant_la_publication__rien_n_est_marqu
     with pytest.raises(asyncio.CancelledError):
         await OUTBOX_SVC.relayer(fabrique, PublieurAnnule())
     assert _compter(fabrique, OUTBOX, OUTBOX.c.relaye_le.is_(None)) == 1
+
+
+async def test_relayer__arret_du_worker_au_troisieme__deux_premiers_restent_marques(
+    fabrique: sessionmaker[Session],
+) -> None:
+    with fabrique() as s, s.begin():
+        for i in range(5):
+            OUTBOX_SVC.ajouter(s, _env(i))
+    with pytest.raises(asyncio.CancelledError):
+        await OUTBOX_SVC.relayer(fabrique, PublieurAnnule(annule_au_appel=3))
+    assert _compter(fabrique, OUTBOX, OUTBOX.c.relaye_le.is_(None)) == 3
+
+
+async def test_relayer__chaque_marquage_valide_avant_la_publication_suivante(
+    fabrique: sessionmaker[Session],
+) -> None:
+    with fabrique() as s, s.begin():
+        for i in range(4):
+            OUTBOX_SVC.ajouter(s, _env(i))
+    temoin = PublieurTemoin(fabrique)
+    assert await OUTBOX_SVC.relayer(fabrique, temoin) == 4
+    assert temoin.marques_vus == [0, 1, 2, 3]
 
 
 async def test_relayer__limite_par_lot(fabrique: sessionmaker[Session]) -> None:
@@ -295,6 +335,30 @@ async def test_assurer_flux__idempotent_et_retention_illimitee(js: JetStreamCont
     assert info.config.subjects == ["evt.identity.>"]
     assert info.config.max_age in (0, None)
     assert info.config.max_msgs in (-1, None)
+
+
+async def test_assurer_flux__fenetre_de_dedoublonnage_d_une_heure_sous_une_conservation_illimitee(
+    js: JetStreamContext,
+) -> None:
+    info = await js.stream_info(nom_flux("identity"))
+    assert FENETRE_DEDOUBLONNAGE.total_seconds() == 3600
+    assert info.config.duplicate_window == 3600
+    # max_age à 0 : conservation illimitée, donc toujours supérieure à la fenêtre
+    assert info.config.max_age in (0, None)
+
+
+async def test_assurer_flux__flux_existant_a_deux_minutes__fenetre_portee_a_une_heure(
+    js: JetStreamContext,
+) -> None:
+    info = await js.stream_info(nom_flux("identity"))
+    info.config.duplicate_window = 120
+    await js.update_stream(info.config)
+    publieur = PublieurJetStream(js)
+    await publieur.publier("evt.identity.utilisateur.cree.v1", b"{}", "message-conserve")
+    await assurer_flux(js, "identity")
+    apres = await js.stream_info(nom_flux("identity"))
+    assert apres.config.duplicate_window == 3600
+    assert apres.state.messages == 1
 
 
 async def test_relayer__crash_entre_publication_et_commit__pas_de_doublon_dans_le_flux(

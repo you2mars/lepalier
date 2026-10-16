@@ -6,22 +6,30 @@ locales ; `make test` les ignore. Job CI « plateforme », filtré par chemins.
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import hashlib
 import hmac
 import json
 import os
 import re
+import shlex
 import socket
 import ssl
 import struct
 import subprocess
+import tempfile
 import time
-from collections.abc import Iterator
+import uuid
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import httpx
+import jsonschema
+import nats
 import pytest
 
 pytestmark = pytest.mark.skipif(
@@ -29,6 +37,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 IMAGE_IDENTITY = "ghcr.io/you2mars/identity:dev"
+# navigateurs et bibliothèques système de Playwright, même version que @playwright/test (front/package.json)
+IMAGE_PLAYWRIGHT = (
+    "mcr.microsoft.com/playwright:v1.63.0-noble"
+    "@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27"
+)
 RACINE = Path(__file__).resolve().parents[2]
 
 
@@ -127,8 +140,8 @@ def test_image__commande_tick_presente() -> None:
 # --- bloc B : identity dans Compose ----------------------------------------------------------------------
 
 PROJET = "lepalier-essai"
-URL_PUBLIQUE = "https://192.0.2.10"
 ESSAI = RACINE / "scripts" / "tests" / "plateforme" / "compose.essai.yml"
+PORTS_ESSAI = RACINE / "scripts" / "tests" / "plateforme" / "compose.essai-ports.yml"
 
 
 def _port_libre() -> int:
@@ -143,27 +156,35 @@ class Plateforme:
     secrets: Path
     certificat: Path
     fichier_env: Path
+    # ligne écrite par make dev-certs, avant que l'essai n'y mette l'adresse qu'il sert vraiment
+    ligne_dev_certs: str = ""
 
     @property
     def https(self) -> str:
         return f"https://127.0.0.1:{self.env['LEPALIER_PORT_HTTPS']}"
 
-    def compose(self, *arguments: str, verifier: bool = True) -> subprocess.CompletedProcess[str]:
+    def commande_compose(self, faux_front: bool = True) -> list[str]:
+        """docker compose sur le projet d'essai ; faux_front=False : le vrai front, sans fichier d'essai."""
+        return [
+            "docker",
+            "compose",
+            "-f",
+            str(RACINE / "compose.dev.yml"),
+            "-f",
+            str(PORTS_ESSAI),
+            *(["-f", str(ESSAI)] if faux_front else []),
+            # .env écrit par make dev-certs, comme sur la VM ; jamais le .env du dépôt
+            "--env-file",
+            str(self.fichier_env),
+            "-p",
+            PROJET,
+        ]
+
+    def compose(
+        self, *arguments: str, verifier: bool = True, faux_front: bool = True
+    ) -> subprocess.CompletedProcess[str]:
         r = subprocess.run(
-            [
-                "docker",
-                "compose",
-                "-f",
-                str(RACINE / "compose.dev.yml"),
-                "-f",
-                str(ESSAI),
-                # .env écrit par make dev-certs, comme sur la VM ; jamais le .env du dépôt
-                "--env-file",
-                str(self.fichier_env),
-                "-p",
-                PROJET,
-                *arguments,
-            ],
+            [*self.commande_compose(faux_front), *arguments],
             cwd=RACINE,
             env=self.env,
             capture_output=True,
@@ -173,6 +194,12 @@ class Plateforme:
         if verifier:
             assert r.returncode == 0, r.stdout + r.stderr
         return r
+
+    def port(self, service: str, port_conteneur: int) -> int:
+        """Port de l'hôte choisi par Docker (compose.essai-ports.yml), relu à chaque appel."""
+        hote, _, port = self.compose("port", service, str(port_conteneur)).stdout.strip().rpartition(":")
+        assert hote == "127.0.0.1", hote
+        return int(port)
 
     def python(self, code: str, verifier: bool = True) -> subprocess.CompletedProcess[str]:
         return self.compose("exec", "-T", "identity", "python", "-c", code, verifier=verifier)
@@ -203,17 +230,21 @@ def plateforme(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Plateforme]
         **{nom: valeur for nom, valeur in os.environ.items() if nom != "LEPALIER_URL_PUBLIQUE"},
         "SECRETS_DIR": str(secrets),
         "LEPALIER_SECRETS": str(secrets),
-        "LEPALIER_PORT_POSTGRES": str(_port_libre()),
-        "LEPALIER_PORT_NATS": str(_port_libre()),
-        "LEPALIER_PORT_NATS_SUIVI": str(_port_libre()),
-        "LEPALIER_PORT_MAILPIT": str(_port_libre()),
-        "LEPALIER_PORT_SMTP": str(_port_libre()),
         "LEPALIER_CERTS": str(certificats),
         "LEPALIER_ADRESSE_HTTPS": "127.0.0.1",
         "LEPALIER_PORT_HTTPS": str(_port_libre()),
     }
     subprocess.run(["bash", "scripts/dev-secrets.sh"], cwd=RACINE, env=env, check=True, capture_output=True)
-    essai = Plateforme(env=env, secrets=secrets, certificat=certificats / "dev.crt", fichier_env=fichier_env)
+    essai = Plateforme(
+        env=env,
+        secrets=secrets,
+        certificat=certificats / "dev.crt",
+        fichier_env=fichier_env,
+        ligne_dev_certs=fichier_env.read_text(),
+    )
+    # l'essai sert le site sur 127.0.0.1 et un port libre : l'adresse publique (liens des e-mails, origine
+    # autorisée des écritures) doit être celle-là, comme sur la VM l'adresse écrite par make dev-certs
+    fichier_env.write_text(f"LEPALIER_URL_PUBLIQUE={essai.https}\n")
     assert PROJET == "lepalier-essai"  # down -v ne vise jamais la plateforme de dev (lepalier-dev)
     try:
         _demarrer(essai)
@@ -242,10 +273,30 @@ def test_compose__commandes_sans_variable_dans_l_environnement(plateforme: Plate
     """R0-28 : l'adresse de la VM vient du .env écrit par make dev-certs ; docker compose ps, logs, exec et
     make tick fonctionnent sans que la variable soit fournie par make dev-up."""
     assert "LEPALIER_URL_PUBLIQUE" not in plateforme.env
-    assert plateforme.fichier_env.read_text() == f"LEPALIER_URL_PUBLIQUE={URL_PUBLIQUE}\n"
+    assert plateforme.ligne_dev_certs == "LEPALIER_URL_PUBLIQUE=https://192.0.2.10\n"
+    assert plateforme.fichier_env.read_text() == f"LEPALIER_URL_PUBLIQUE={plateforme.https}\n"
     assert "identity" in plateforme.compose("ps", "--services", "--status", "running").stdout.split()
     assert plateforme.compose("exec", "-T", "identity", "true").returncode == 0
     assert plateforme.compose("logs", "--tail", "1", "identity").returncode == 0
+
+
+def test_compose__ports_publies_choisis_par_docker__distincts_sur_127_0_0_1(plateforme: Plateforme) -> None:
+    """Aucun port tiré à l'avance hors HTTPS : Docker attribue chaque port publié, jamais deux fois."""
+    config = json.loads(plateforme.compose("config", "--format", "json").stdout)
+    for service in ("postgres", "nats", "mailpit"):
+        assert all(p.get("published", "") == "" for p in config["services"][service]["ports"]), service
+    ports = [
+        plateforme.port(service, port)
+        for service, port in (
+            ("postgres", 5432),
+            ("nats", 4222),
+            ("nats", 8222),
+            ("mailpit", 8025),
+            ("mailpit", 1025),
+        )
+    ]
+    assert len(set(ports)) == 5, ports
+    assert int(plateforme.env["LEPALIER_PORT_HTTPS"]) not in ports
 
 
 def test_compose__reseaux_de_chaque_conteneur(plateforme: Plateforme) -> None:
@@ -381,7 +432,7 @@ def test_compose__lien_d_invitation_recu_dans_mailpit_sur_l_adresse_de_la_vm(pla
         ".where(UTILISATEUR.c.email == 'gerant@essai.local')).scalar_one();"
         "s.close(); inviter(f, g, 'associe@essai.local', 'Mme Durand', 'associe', None)"
     )
-    api = f"http://127.0.0.1:{plateforme.env['LEPALIER_PORT_MAILPIT']}/api/v1"
+    api = f"http://127.0.0.1:{plateforme.port('mailpit', 8025)}/api/v1"
     limite = time.monotonic() + 60
     messages: list[dict[str, object]] = []
     while time.monotonic() < limite and not messages:
@@ -389,7 +440,7 @@ def test_compose__lien_d_invitation_recu_dans_mailpit_sur_l_adresse_de_la_vm(pla
         time.sleep(1)
     (resume,) = messages
     texte = httpx.get(f"{api}/message/{resume['ID']}").json()["Text"]
-    assert re.search(rf"{re.escape(URL_PUBLIQUE)}/activation#[A-Za-z0-9_-]{{43}}", texte)
+    assert re.search(rf"{re.escape(plateforme.https)}/activation#[A-Za-z0-9_-]{{43}}", texte)
 
 
 def test_compose__identity_en_bonne_sante_worker_present(plateforme: Plateforme) -> None:
@@ -431,12 +482,64 @@ cles = charger_cles(settings.secrets_dir)
 uid, secret = uuid7(), totp.nouveau_secret()
 with fabrique()() as s, s.begin():
     s.execute(insert(UTILISATEUR).values(
-        id=uid, email="{email}", nom_affiche="M. Essai", role="gerant", statut="actif",
+        id=uid, email="{email}", nom_affiche="{nom}", role="{role}", statut="actif",
         origine="commande_locale", mot_de_passe_hache=mot_de_passe.hacher("{mdp}"),
         totp_secret_chiffre=chiffrer(secret, cles.chiffrement, uid.bytes),
     ))
 print(uid, secret.hex())
 """
+
+
+# 2 codes de secours pour un compte : affichés en clair une seule fois, comme à l'activation
+AJOUTER_CODES_SECOURS = """
+from sqlalchemy import insert
+from app.db import fabrique
+from app.engines import codes_secours
+from app.models import CODE_SECOURS
+from commun.ids import uuid7
+codes = codes_secours.generer()[:2]
+with fabrique()() as s, s.begin():
+    for code in codes:
+        s.execute(insert(CODE_SECOURS).values(
+            id=uuid7(), utilisateur_id="{uid}", empreinte=codes_secours.hacher(code)
+        ))
+print(*codes)
+"""
+# invitation par la commande locale (app.admin) : jeton du lien d'activation, sans e-mail
+INVITER = """
+from app.admin import creer_gerant
+from app.db import fabrique
+print(creer_gerant(fabrique(), "{email}", "{nom}", "https://essai.invalide").rsplit("#", 1)[1].strip())
+"""
+# lien de réinitialisation du mot de passe, écrit comme le fait l'envoi de l'e-mail (jobs/courriels.py)
+REINITIALISER = """
+from sqlalchemy import func, insert, select
+from app.db import fabrique
+from app.engines import durees
+from app.engines.jetons import empreinte, nouveau_jeton
+from app.models import REINITIALISATION, UTILISATEUR
+from commun.ids import uuid7
+jeton = nouveau_jeton()
+with fabrique()() as s, s.begin():
+    maintenant = s.execute(select(func.now())).scalar_one()
+    uid = s.execute(select(UTILISATEUR.c.id).where(UTILISATEUR.c.email == "{email}")).scalar_one()
+    s.execute(insert(REINITIALISATION).values(
+        id=uuid7(), utilisateur_id=uid, empreinte=empreinte(jeton), cree_le=maintenant,
+        expire_le=durees.expiration_reinitialisation(maintenant),
+    ))
+print(jeton)
+"""
+# un compte par projet Playwright (front/playwright.config.ts) : l'anti-rejeu refuse deux fois un même code
+PROJETS_PLAYWRIGHT = ("ordinateur", "mobile-360")
+
+
+def _creer_compte(
+    plateforme: Plateforme, email: str, role: str = "gerant", nom: str = "M. Essai"
+) -> tuple[str, str]:
+    """Compte actif (mot de passe MOT_DE_PASSE) : (identifiant, clé TOTP en hexadécimal)."""
+    code = CREER_COMPTE.format(email=email, mdp=MOT_DE_PASSE, role=role, nom=nom)
+    uid, secret = plateforme.python(code).stdout.split()
+    return uid, secret
 
 
 def _code_totp(secret: bytes) -> str:
@@ -459,16 +562,20 @@ class Session:
 @pytest.fixture(scope="module")
 def session(plateforme: Plateforme) -> Iterator[Session]:
     """Gérant connecté à travers nginx (cookie lp_session)."""
-    sortie = plateforme.python(
-        CREER_COMPTE.format(email="essai@essai.local", mdp=MOT_DE_PASSE)
-    ).stdout.split()
-    uid, secret = sortie[0], bytes.fromhex(sortie[1])
+    connectee = _connecter(plateforme, "essai@essai.local")
+    yield connectee
+    connectee.client.close()
+
+
+def _connecter(plateforme: Plateforme, email: str) -> Session:
+    """Nouveau gérant, connecté à travers nginx (adresse, mot de passe puis code)."""
+    uid, secret = _creer_compte(plateforme, email)
     client = _client(plateforme)
-    connexion = {"email": "essai@essai.local", "mot_de_passe": MOT_DE_PASSE}
+    connexion = {"email": email, "mot_de_passe": MOT_DE_PASSE}
     assert client.post("/api/identity/auth/connexion", json=connexion).status_code == 200
-    assert client.post("/api/identity/auth/code", json={"code": _code_totp(secret)}).status_code == 200
-    yield Session(client, uid)
-    client.close()
+    code = {"code": _code_totp(bytes.fromhex(secret))}
+    assert client.post("/api/identity/auth/code", json=code).status_code == 200
+    return Session(client, uid)
 
 
 FORGES = {"X-User-Id": "0192f3a4-5b6c-7d8e-9f01-234567890c99", "X-Role": "gerant", "X-Auth-Exp": "9999999999"}
@@ -488,9 +595,12 @@ def _verify_dans_les_journaux(plateforme: Plateforme, depuis: str) -> int:
 def test_nginx__configuration_valide_et_demarre_sans_les_services_absents(
     plateforme: Plateforme, session: Session
 ) -> None:
-    """N1 : résolveur Docker et adresses en variables ; un service absent donne 502, pas un arrêt de nginx."""
+    """N1 : résolveur Docker et adresses en variables ; un service absent donne 503 au format commun (C5), pas
+    un arrêt de nginx."""
     assert plateforme.compose("exec", "-T", "nginx", "nginx", "-t").returncode == 0
-    assert session.client.get("/api/referentiel/lots").status_code == 502
+    absent = session.client.get("/api/referentiel/lots")
+    assert absent.status_code == 503
+    assert absent.json()["code"] == "service_indisponible"
     assert session.client.get("/api/identity/moi").status_code == 200
 
 
@@ -532,6 +642,121 @@ def test_nginx__entetes_d_identite_vides_vers_le_front(plateforme: Plateforme) -
     for nom in ("x-user-id", "x-role", "x-auth-exp", "x-auth-sig"):
         assert recus.get(nom, "") == "", nom
     assert recus["x-real-ip"] != "1.2.3.4"
+
+
+def test_nginx__x_nonce_du_client_toujours_ecrase(plateforme: Plateforme) -> None:
+    """Le nonce de la politique de sécurité vient toujours de nginx ($request_id), jamais du client."""
+    recus = _client(plateforme).get("/", headers={"X-Nonce": "nonce-forge"}).json()
+    assert recus["x-nonce"] != "nonce-forge"
+    assert re.fullmatch(r"[0-9a-f]{32}", recus["x-nonce"])
+
+
+# --- écoute interne 8081 : lectures du BFF (front côté serveur), jamais depuis l'hôte -------------------
+
+
+def _depuis_le_front(plateforme: Plateforme, methode: str, chemin: str, *entetes: str) -> tuple[int, str]:
+    """(statut, corps) d'une requête faite depuis le conteneur du front vers http://nginx:8081."""
+    options = [arg for entete in entetes for arg in ("-H", entete)]
+    # HEAD : -I (avec -X HEAD, curl attendrait un corps qui ne vient jamais)
+    verbe = ["-I"] if methode == "HEAD" else ["-X", methode]
+    r = plateforme.compose(
+        "exec",
+        "-T",
+        "front",
+        "curl",
+        "-s",
+        "-w",
+        "\n%{http_code}",
+        *verbe,
+        *options,
+        f"http://nginx:8081{chemin}",
+    )
+    corps, _, statut = r.stdout.rpartition("\n")
+    return int(statut), corps
+
+
+def _cookie(session: Session) -> str:
+    return f"Cookie: lp_session={session.client.cookies['lp_session']}"
+
+
+def test_ecoute_interne__lecture_avec_session__meme_identite_que_le_port_public(
+    plateforme: Plateforme, session: Session
+) -> None:
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/moi", _cookie(session))
+    assert statut == 200
+    assert json.loads(corps)["id"] == session.utilisateur_id
+    # HEAD n'est pas refusé par l'écoute : la réponse vient du service (JSON), pas du refus de nginx (HTML) ;
+    # FastAPI ne répond pas à HEAD sur une route GET, d'où son propre 405
+    _, entetes = _depuis_le_front(plateforme, "HEAD", "/api/identity/moi", _cookie(session))
+    assert "content-type: application/json" in entetes.lower()
+
+
+@pytest.mark.parametrize("methode", ["POST", "PUT", "PATCH", "DELETE"])
+def test_ecoute_interne__ecriture_refusee_405(plateforme: Plateforme, session: Session, methode: str) -> None:
+    """Refus de nginx lui-même (HTML), avant toute vérification d'identité ou appel au service."""
+    statut, corps = _depuis_le_front(
+        plateforme, methode, "/api/identity/utilisateurs/inviter", _cookie(session)
+    )
+    assert statut == 405
+    assert "nginx" in corps
+
+
+@pytest.mark.parametrize(
+    "chemin",
+    [
+        "/api/identity/auth/verify",
+        "/api/identity/auth/connexion",
+        "/api/identity/auth/code",
+        "/api/identity/auth/etat-session/",
+        "/api/identity/auth/etat-sessionx",
+        "/internal/healthz",
+        "/api/identity/internal/healthz",
+        "/",
+    ],
+)
+def test_ecoute_interne__auth_internal_et_front_fermes_404(
+    plateforme: Plateforme, session: Session, chemin: str
+) -> None:
+    assert _depuis_le_front(plateforme, "GET", chemin, _cookie(session))[0] == 404
+
+
+def test_ecoute_interne__etat_session__seule_exception_dans_auth_en_lecture(
+    plateforme: Plateforme, session: Session
+) -> None:
+    """Exception bornée (ADR 0006) : après un 401, le BFF demande à identity si la session a été coupée par
+    une suspension ; lecture seule, cookie du navigateur relayé ; écritures toujours refusées par nginx."""
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/auth/etat-session", _cookie(session))
+    assert (statut, json.loads(corps)["code"]) == (200, "session_expiree")
+    statut, corps = _depuis_le_front(plateforme, "POST", "/api/identity/auth/etat-session", _cookie(session))
+    assert statut == 405
+    assert "nginx" in corps
+
+
+def test_ecoute_interne__entetes_forges_sans_cookie__401(plateforme: Plateforme) -> None:
+    entetes = [f"{nom}: {valeur}" for nom, valeur in FORGES_SIGNES.items()]
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/moi", *entetes)
+    assert statut == 401
+    assert json.loads(corps)["code"] == "unauthenticated"
+
+
+def test_ecoute_interne__session_valide_et_entetes_forges__identite_reelle(
+    plateforme: Plateforme, session: Session
+) -> None:
+    entetes = [f"{nom}: {valeur}" for nom, valeur in {**FORGES_SIGNES, "X-Role": "operateur"}.items()]
+    statut, corps = _depuis_le_front(plateforme, "GET", "/api/identity/moi", _cookie(session), *entetes)
+    assert (statut, json.loads(corps)["id"], json.loads(corps)["role"]) == (
+        200,
+        session.utilisateur_id,
+        "gerant",
+    )
+
+
+def test_ecoute_interne__injoignable_depuis_l_hote(plateforme: Plateforme) -> None:
+    publie = plateforme.compose("port", "nginx", "8081", verifier=False)
+    assert publie.returncode != 0 or publie.stdout.strip() in ("", ":0")
+    with socket.socket() as s:
+        s.settimeout(2)
+        assert s.connect_ex(("127.0.0.1", 8081)) != 0
 
 
 def test_nginx__cache_auth_request_10_secondes(plateforme: Plateforme, session: Session) -> None:
@@ -623,12 +848,226 @@ def test_nginx__compte_suspendu_refuse_au_plus_10_secondes_apres(
     assert session.client.get("/api/identity/utilisateurs").status_code == 401
 
 
+def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
+    """Front réel à la place du faux : essais de bout en bout Playwright (accessibilité axe-core, politique de
+    sécurité sans violation, clavier, 360 px, zoom 200 %). Avant N13, qui vide le compteur de connexions."""
+    assert (RACINE / "front" / "node_modules" / "@playwright" / "test").is_dir(), (
+        "Dépendances du front absentes : lancez « cd front && npm ci » avant make test-plateforme."
+    )
+    _creer_compte(plateforme, "e2e@essai.local")
+    comptes_code = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-code-{projet}@essai.local"
+        uid, secret = _creer_compte(plateforme, email)
+        secours = plateforme.python(AJOUTER_CODES_SECOURS.format(uid=uid)).stdout.split()
+        comptes_code[projet] = {"email": email, "secret": secret, "secours": secours}
+    # un gérant par projet pour l'accueil (connexion complète, puis déconnexion)
+    comptes_accueil = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-accueil-{projet}@essai.local"
+        _, secret = _creer_compte(plateforme, email)
+        comptes_accueil[projet] = {"email": email, "secret": secret, "secours": []}
+    # administration : un gérant et un associé par projet
+    comptes_admin = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        # noms distincts d'un projet à l'autre : tous les comptes apparaissent dans la même liste
+        for role, nom in [("gerant", f"M. Gérant {projet}"), ("associe", f"Mme Associée {projet}")]:
+            email = f"e2e-admin-{role}-{projet}@essai.local"
+            _, secret = _creer_compte(plateforme, email, role=role, nom=nom)
+            comptes_admin[f"{role}-{projet}"] = {"email": email, "secret": secret, "secours": [], "nom": nom}
+        # comptes visés par les actions de la fiche « Gérer l'accès » (6.3) : un associé actif, une invitation
+        cible = f"Mme Cible {projet}"
+        _creer_compte(plateforme, f"e2e-cible-{projet}@essai.local", role="associe", nom=cible)
+        comptes_admin[f"cible-{projet}"] = {
+            "email": f"e2e-cible-{projet}@essai.local",
+            "secret": "",
+            "secours": [],
+            "nom": cible,
+        }
+        # écran 6.4 : un associé dont le gérant change le rôle, un second gérant qui quitte lui-même ce rôle
+        nom_role = f"Mme Rôle {projet}"
+        _creer_compte(plateforme, f"e2e-role-{projet}@essai.local", role="associe", nom=nom_role)
+        comptes_admin[f"role-{projet}"] = {
+            "email": f"e2e-role-{projet}@essai.local",
+            "secret": "",
+            "secours": [],
+            "nom": nom_role,
+        }
+        nom_quitte = f"M. Quitte {projet}"
+        _, secret_quitte = _creer_compte(plateforme, f"e2e-quitte-{projet}@essai.local", nom=nom_quitte)
+        comptes_admin[f"quitte-{projet}"] = {
+            "email": f"e2e-quitte-{projet}@essai.local",
+            "secret": secret_quitte,
+            "secours": [],
+            "nom": nom_quitte,
+        }
+        invitee = f"M. Invité {projet}"
+        plateforme.python(INVITER.format(email=f"e2e-invite-{projet}@essai.local", nom=invitee))
+        comptes_admin[f"invite-{projet}"] = {
+            "email": f"e2e-invite-{projet}@essai.local",
+            "secret": "",
+            "secours": [],
+            "nom": invitee,
+        }
+    # écran 9 : un compte et un lien de réinitialisation par projet (le changement réussi consomme le lien)
+    reinitialisations = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-reinit-{projet}@essai.local"
+        _, secret = _creer_compte(plateforme, email)
+        jeton = plateforme.python(REINITIALISER.format(email=email)).stdout.strip()
+        reinitialisations[projet] = {"email": email, "secret": secret, "jeton": jeton}
+    # captures de la revue UX (si LEPALIER_E2E_CAPTURES) : un compte, une invitation et un lien par projet
+    captures = {}
+    for projet in PROJETS_PLAYWRIGHT:
+        email = f"e2e-captures-{projet}@essai.local"
+        _, secret = _creer_compte(plateforme, email, nom=f"M. Captures {projet}")
+        invitation = plateforme.python(
+            INVITER.format(email=f"e2e-captures-invite-{projet}@essai.local", nom="Mme Durand")
+        ).stdout.strip()
+        lien = plateforme.python(REINITIALISER.format(email=email)).stdout.strip()
+        captures[projet] = {
+            "email": email,
+            "secret": secret,
+            "invitation": invitation,
+            "reinitialisation": lien,
+        }
+    # une invitation par projet : l'activation la consomme
+    invitations = {
+        projet: plateforme.python(
+            INVITER.format(email=f"e2e-activation-{projet}@essai.local", nom="M. Essai")
+        ).stdout.strip()
+        for projet in PROJETS_PLAYWRIGHT
+    }
+    plateforme.compose(
+        "up",
+        "-d",
+        "--no-build",
+        "--force-recreate",
+        "--wait",
+        "--wait-timeout",
+        "240",
+        "front",
+        faux_front=False,
+    )
+    # Playwright dans son image : dépôt en lecture seule, uid de l'utilisateur, réseau de l'hôte ; résultats
+    # dans LEPALIER_E2E_RESULTATS_HOTE (CI) ou, en local, dans le dossier temporaire de l'hôte ; jamais dans
+    # le dépôt
+    resultats = Path(
+        os.environ.get("LEPALIER_E2E_RESULTATS_HOTE", Path(tempfile.gettempdir()) / "lepalier-playwright")
+    )
+    resultats.mkdir(parents=True, exist_ok=True)
+    variables = {
+        "LEPALIER_E2E_URL": plateforme.https,
+        "LEPALIER_E2E_EMAIL": "e2e@essai.local",
+        "LEPALIER_E2E_MOT_DE_PASSE": MOT_DE_PASSE,
+        "LEPALIER_E2E_COMPTES_CODE": json.dumps(comptes_code),
+        "LEPALIER_E2E_INVITATIONS": json.dumps(invitations),
+        "LEPALIER_E2E_COMPTES_ACCUEIL": json.dumps(comptes_accueil),
+        "LEPALIER_E2E_COMPTES_ADMIN": json.dumps(comptes_admin),
+        "LEPALIER_E2E_REINITIALISATIONS": json.dumps(reinitialisations),
+        "LEPALIER_E2E_COMPTES_CAPTURES": json.dumps(captures),
+        # captures de la revue UX, écrites dans le dossier de l'hôte monté (LEPALIER_E2E_RESULTATS_HOTE)
+        "LEPALIER_E2E_CAPTURES": os.environ.get("LEPALIER_E2E_CAPTURES", ""),
+        # essai de charge (diagnostic : processeur ralenti, écritures suivies d'un changement de page)
+        "LEPALIER_E2E_CHARGE": os.environ.get("LEPALIER_E2E_CHARGE", ""),
+        # rejeu d'un essai (diagnostic, aides.ts) : processeur ralenti, session ouverte à chaque essai
+        "LEPALIER_E2E_RALENTI": os.environ.get("LEPALIER_E2E_RALENTI", ""),
+        "LEPALIER_E2E_SESSION_NEUVE": os.environ.get("LEPALIER_E2E_SESSION_NEUVE", ""),
+        # dossier du conteneur Playwright : sous le dossier de l'hôte monté, que Playwright vide et recrée
+        "LEPALIER_E2E_SORTIE": "/tmp/hote/resultats",  # noqa: S108
+        "HOME": "/tmp",  # noqa: S108
+    }
+    r = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "host",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            *[arg for nom, valeur in variables.items() for arg in ("-e", f"{nom}={valeur}")],
+            "-v",
+            f"{RACINE}:/srv/depot:ro",
+            # résultats (traces des échecs, captures) toujours gardés sur l'hôte, hors du dépôt
+            "-v",
+            f"{resultats}:/tmp/hote",
+            "-w",
+            "/srv/depot/front",
+            IMAGE_PLAYWRIGHT,
+            "npx",
+            "--no-install",
+            "playwright",
+            "test",
+            # arguments de diagnostic seulement (par exemple --grep … --repeat-each 10) ; vide d'ordinaire
+            *os.environ.get("LEPALIER_E2E_ARGS", "").split(),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    # sortie complète de Playwright, affichée par pytest en cas d'échec : le premier échec n'est jamais coupé
+    print(r.stdout)
+    print(r.stderr)
+    assert r.returncode == 0, (
+        f"essais Playwright en échec : sortie complète ci-dessus, traces dans {resultats}/resultats"
+    )
+    # formulaires envoyés avant la prise en main (avant-hydratation.spec.ts, constat UX (18)) : aucun
+    # envoi natif par le navigateur (POST vers une page, donc vers le front), ni marqueur ni mot de passe dans
+    # le journal de nginx ; l'adresse journalisée est réécrite pour l'amont (/auth/connexion, pas /api/…)
+    journal = plateforme.compose("logs", "--no-log-prefix", "nginx").stdout
+    lignes = journal.splitlines()
+    envois_natifs = [ligne for ligne in lignes if '"m":"POST"' in ligne and ':3000"' in ligne]
+    assert envois_natifs == []
+    assert "MARQUEUR" not in journal
+    assert MOT_DE_PASSE not in journal
+
+
+def test_identity_arrete__accueil_indisponible_sans_deconnexion_puis_retour(plateforme: Plateforme) -> None:
+    """R0-36 (UX-30) : identity arrêté, une session valide n'est jamais traitée comme expirée ; nginx répond
+    par une erreur 5xx (jamais 401) ; l'accueil dit « Information momentanément indisponible »."""
+    plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "front", faux_front=False)
+    # session propre à l'essai : celle du module a pu être coupée par un essai précédent (suspension)
+    session = _connecter(plateforme, "indisponible@essai.local")
+    jeton = session.client.cookies["lp_session"]
+    plateforme.compose("stop", "identity")
+    try:
+        # vérification d'identité de nginx (auth_request) en échec : erreur du serveur, jamais 401
+        api = session.client.get("/api/identity/moi")
+        assert api.status_code >= 500, api.status_code
+        accueil = session.client.get("/", follow_redirects=False)
+        assert accueil.status_code == 200, (accueil.status_code, accueil.headers.get("location"))
+        assert "Information momentanément indisponible" in accueil.text
+        assert "set-cookie" not in accueil.headers
+        assert session.client.cookies["lp_session"] == jeton
+    finally:
+        plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "identity")
+    accueil = session.client.get("/", follow_redirects=False)
+    assert accueil.status_code == 200
+    assert "<h1>À faire</h1>" in accueil.text
+    session.client.close()
+
+
 def test_nginx__limite_de_debit_sur_auth__429_json(plateforme: Plateforme) -> None:
     """N13 (C9, ADR 0006) : 10 par minute et rafale de 10 : 11 requêtes passent, la 12e reçoit 429.
 
-    Attend d'abord une minute : le compteur de l'adresse de l'essai repart plein.
+    Avec la vraie limite : nginx recréé à partir de compose.dev.yml seul (10r/m), compteurs neufs ; puis remis
+    à la valeur des essais (compose.essai.yml) pour les essais suivants.
     """
-    time.sleep(65)
+    _recreer_nginx(plateforme, valeur_reelle=True)
+    try:
+        _limite_de_debit_reelle(plateforme)
+    finally:
+        _recreer_nginx(plateforme, valeur_reelle=False)
+
+
+def _recreer_nginx(plateforme: Plateforme, valeur_reelle: bool) -> None:
+    attente = ["--wait", "--wait-timeout", "240"]
+    options = ["up", "-d", "--no-build", "--no-deps", "--force-recreate", *attente, "nginx"]
+    plateforme.compose(*options, faux_front=not valeur_reelle)
+
+
+def _limite_de_debit_reelle(plateforme: Plateforme) -> None:
     client = _client(plateforme)
     # une adresse e-mail par requête : le verrou d'identity (5 échecs par compte et adresse IP) ne joue pas
     statuts = [
@@ -647,3 +1086,405 @@ def test_nginx__limite_de_debit_sur_auth__429_json(plateforme: Plateforme) -> No
         {},
     )
     assert re.fullmatch(r"[0-9a-f]{32}", corps["trace_id"])
+
+
+# --- jeu de recette du lot 0 ----------------------------------------------------------------------------
+
+
+def test_recette_lot0__jeu_cree_dans_identity__invitations_au_nom_du_gerant_puis_relance_sans_effet(
+    plateforme: Plateforme,
+) -> None:
+    """make recette LOT=0 sur le projet d'essai : lien du gérant affiché une fois, deux invitations."""
+    env = {**plateforme.env, "LEPALIER_COMPOSE": shlex.join(plateforme.commande_compose())}
+
+    def lancer() -> subprocess.CompletedProcess[str]:
+        commande = ["python3", str(RACINE / "scripts" / "recette" / "lot-0.py")]
+        return subprocess.run(commande, cwd=RACINE, env=env, capture_output=True, text=True, check=False)
+
+    premier = lancer()
+    assert premier.returncode == 0, premier.stdout + premier.stderr
+    assert len(re.findall(r"/activation#[A-Za-z0-9_-]{43}", premier.stdout)) == 1
+    assert premier.stdout.count("Invitation créée pour") == 2
+    invite_par = plateforme.python(
+        "from sqlalchemy import select; from app.db import fabrique; from app.models import UTILISATEUR;"
+        "s = fabrique()(); r = dict(s.execute(select(UTILISATEUR.c.email, UTILISATEUR.c.invite_par)).all());"
+        "print(r['associe.jeu@test.local'] == r['operateur.jeu@test.local'] == "
+        "s.execute(select(UTILISATEUR.c.id).where(UTILISATEUR.c.email == 'gerant@test.local')).scalar_one())"
+    )
+    assert invite_par.stdout.strip() == "True"
+    api = f"http://127.0.0.1:{plateforme.port('mailpit', 8025)}/api/v1"
+    attendus = {"associe.jeu@test.local", "operateur.jeu@test.local"}
+    recus: set[str] = set()
+    limite = time.monotonic() + 60
+    while time.monotonic() < limite and recus != attendus:
+        messages = httpx.get(f"{api}/messages").json()["messages"]
+        recus = {d["Address"] for m in messages for d in m["To"]} & attendus
+        time.sleep(1)
+    assert recus == attendus
+
+    second = lancer()
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert "/activation#" not in second.stdout
+    assert second.stdout.count("déjà présent") == 3
+
+
+# --- bloc D : chorégraphies d'identity (outbox → NATS JetStream) -------------------------------------------
+# Écritures réelles à travers nginx, services arrêtés puis redémarrés : aucun événement perdu ni en double
+# dans EVT_IDENTITY (TEC-DAT-04, TEC-JOB-08 ; SPEC_TECHNIQUE § 5.6) ; chaque chorégraphie a ses comptes.
+
+FLUX = "EVT_IDENTITY"
+CONTRATS = RACINE / "contracts"
+
+
+@dataclass(frozen=True)
+class Message:
+    seq: int
+    sujet: str
+    id_message: str
+    enveloppe: dict[str, object]
+
+
+@dataclass(frozen=True)
+class Flux:
+    fenetre_dedoublonnage: float
+    messages: list[Message]
+
+    def de(self, agregat: str) -> list[Message]:
+        return [m for m in self.messages if m.enveloppe["aggregate_id"] == agregat]
+
+
+def _flux(plateforme: Plateforme) -> Flux:
+    """Tout le flux EVT_IDENTITY, lu depuis l'hôte (port NATS publié par l'essai)."""
+    url = f"nats://127.0.0.1:{plateforme.port('nats', 4222)}"
+
+    async def lire() -> Flux:
+        client = await nats.connect(url, connect_timeout=5, max_reconnect_attempts=0)
+        try:
+            js = client.jetstream()
+            info = await js.stream_info(FLUX)
+            messages = []
+            for seq in range(info.state.first_seq, info.state.last_seq + 1):
+                brut = await js.get_msg(FLUX, seq=seq)
+                assert brut.headers is not None and brut.data is not None
+                messages.append(
+                    Message(seq, brut.subject, brut.headers["Nats-Msg-Id"], json.loads(brut.data))
+                )
+            return Flux(float(info.config.duplicate_window or 0), messages)
+        finally:
+            await client.close()
+
+    return asyncio.run(lire())
+
+
+def _outbox(plateforme: Plateforme, agregat: str) -> list[tuple[str, str, bool]]:
+    """Lignes d'outbox d'un utilisateur, dans l'ordre : (id, type, relayé)."""
+    sortie = plateforme.compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "admin",
+        "-d",
+        "identity",
+        "-At",
+        "-F",
+        " ",
+        "-c",
+        "SELECT id, type, relaye_le IS NOT NULL FROM outbox"
+        f" WHERE cle_agregat = '{uuid.UUID(agregat)}' ORDER BY id",
+    ).stdout
+    return [(i, t, r == "t") for i, t, r in (ligne.split() for ligne in sortie.splitlines())]
+
+
+def _attendre[T](condition: Callable[[], T], quoi: str, delai: float = 90) -> T:
+    limite = time.monotonic() + delai
+    while True:
+        resultat = condition()
+        if resultat:
+            return resultat
+        assert time.monotonic() < limite, f"toujours pas au bout de {delai} s : {quoi}"
+        time.sleep(1)
+
+
+def _tout_relaye(plateforme: Plateforme, agregat: str, nombre: int) -> list[tuple[str, str, bool]]:
+    def relaye() -> list[tuple[str, str, bool]]:
+        lignes = _outbox(plateforme, agregat)
+        return lignes if len(lignes) == nombre and all(r for _, _, r in lignes) else []
+
+    return _attendre(relaye, f"{nombre} événements relayés pour {agregat}")
+
+
+def _sante(plateforme: Plateforme) -> tuple[int, dict[str, object]]:
+    sortie = plateforme.compose(
+        "exec",
+        "-T",
+        "identity",
+        "curl",
+        "-sS",
+        "-w",
+        "\n%{http_code}",
+        "http://localhost:8000/internal/healthz",
+    ).stdout
+    corps, _, code = sortie.rpartition("\n")
+    return int(code), json.loads(corps)
+
+
+def _ecrire(gerant: Session, methode: str, chemin: str, corps: dict[str, object]) -> httpx.Response:
+    entetes = {"Idempotency-Key": str(uuid.uuid4())}
+    return gerant.client.request(methode, f"/api/identity/utilisateurs{chemin}", json=corps, headers=entetes)
+
+
+def _lien_d_activation(plateforme: Plateforme, email: str) -> str:
+    api = f"http://127.0.0.1:{plateforme.port('mailpit', 8025)}/api/v1"
+
+    def messages() -> list[dict[str, str]]:
+        return list(httpx.get(f"{api}/search", params={"query": f'to:"{email}"'}).json()["messages"])
+
+    (resume,) = _attendre(messages, f"invitation reçue par {email}")
+    texte = httpx.get(f"{api}/message/{resume['ID']}").json()["Text"]
+    trouve = re.search(r"/activation#([A-Za-z0-9_-]{43})", texte)
+    assert trouve, texte
+    return trouve.group(1)
+
+
+def _inviter_et_activer(plateforme: Plateforme, gerant: Session, email: str) -> str:
+    """Invitation par l'API, lien reçu dans mailpit, activation par l'API : utilisateur.cree."""
+    invite = _ecrire(
+        gerant, "POST", "/inviter", {"email": email, "nom_affiche": "Mme Durand", "role": "associe"}
+    )
+    assert invite.status_code == 201, invite.text
+    jeton = _lien_d_activation(plateforme, email)
+    with _client(plateforme) as client:
+        debut = client.post("/api/identity/auth/activation/debut", json={"jeton": jeton})
+        assert debut.status_code == 200, debut.text
+        cle = parse_qs(urlparse(debut.json()["uri_otpauth"]).query)["secret"][0]
+        secret = base64.b32decode(cle + "=" * (-len(cle) % 8))
+        corps = {"jeton": jeton, "mot_de_passe": MOT_DE_PASSE, "code": _code_totp(secret)}
+        fin = client.post("/api/identity/auth/activation/fin", json=corps)
+        assert fin.status_code == 200, fin.text
+    return str(invite.json()["id"])
+
+
+def _modifier(gerant: Session, uid: str, **champs: str) -> None:
+    r = _ecrire(gerant, "PATCH", f"/{uid}", dict(champs))
+    assert r.status_code == 200, r.text
+
+
+def _une_fois_dans_l_ordre(flux: Flux, outbox: list[tuple[str, str, bool]], agregat: str) -> list[str]:
+    """Chaque ligne d'outbox de l'utilisateur = un seul message, dans l'ordre des id ; renvoie les types."""
+    messages = flux.de(agregat)
+    assert [m.id_message for m in messages] == [i for i, _, _ in outbox]
+    assert [m.enveloppe["id"] for m in messages] == [i for i, _, _ in outbox]
+    return [str(m.enveloppe["type"]) for m in messages]
+
+
+@pytest.fixture(scope="module")
+def gerant_choregraphies(plateforme: Plateforme) -> Iterator[Session]:
+    connecte = _connecter(plateforme, "choregraphies@essai.local")
+    yield connecte
+    connecte.client.close()
+
+
+def _reconnecter(plateforme: Plateforme, gerant: Session) -> Session:
+    """Même gérant après un redémarrage : nouvelle session si l'ancienne n'est plus reconnue."""
+    if gerant.client.get("/api/identity/utilisateurs").status_code == 200:
+        return gerant
+    return _connecter(plateforme, f"choregraphies-{uuid.uuid4().hex[:8]}@essai.local")
+
+
+def test_choregraphie__ecritures_de_l_api__un_message_par_evenement_dans_l_ordre_conforme_au_contrat(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C1 : activation, changement de rôle, suspension, réactivation ; enveloppe et payload conformes aux
+    schémas de contracts/."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c1@essai.local")
+    _modifier(gerant_choregraphies, uid, role="operateur")
+    _modifier(gerant_choregraphies, uid, statut="suspendu")
+    _modifier(gerant_choregraphies, uid, statut="actif")
+    outbox = _tout_relaye(plateforme, uid, 4)
+    flux = _flux(plateforme)
+    types = _une_fois_dans_l_ordre(flux, outbox, uid)
+    assert types == [
+        "utilisateur.cree",
+        "utilisateur.role_change",
+        "utilisateur.suspendu",
+        "utilisateur.reactive",
+    ]
+    enveloppe = json.loads((CONTRATS / "enveloppe.schema.json").read_text())
+    for m in flux.de(uid):
+        fait = str(m.enveloppe["type"]).split(".")[1]
+        assert m.sujet == f"evt.identity.utilisateur.{fait}.v1"
+        jsonschema.validate(m.enveloppe, enveloppe)
+        contrat = json.loads((CONTRATS / "events" / "utilisateur" / f"{fait}.v1.json").read_text())
+        jsonschema.validate(m.enveloppe["payload"], contrat)
+        assert m.enveloppe["producer"] == "identity"
+
+
+def test_choregraphie__crash_entre_publication_et_marquage__republication_ecartee_par_jetstream(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C4 : marquage perdu (relaye_le remis à vide) ; le worker republie, JetStream écarte le doublon (même
+    Nats-Msg-Id, dans la fenêtre de dédoublonnage d'une heure du flux)."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c4@essai.local")
+    ((evenement, _, _),) = _tout_relaye(plateforme, uid, 1)
+    avant = _flux(plateforme)
+    assert avant.fenetre_dedoublonnage == 3600
+    plateforme.compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "admin",
+        "-d",
+        "identity",
+        "-c",
+        f"UPDATE outbox SET relaye_le = NULL WHERE id = '{uuid.UUID(evenement)}'",
+    )
+    _tout_relaye(plateforme, uid, 1)
+    apres = _flux(plateforme)
+    assert [m.id_message for m in apres.de(uid)] == [evenement]
+    assert len(apres.messages) == len(avant.messages)
+
+
+def test_choregraphie__nats_arrete__ecritures_acceptees_gardees_puis_relayees_sans_doublon(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C2 : NATS arrêté, l'API accepte les écritures, l'outbox les garde et /internal/healthz le signale ;
+    au retour de NATS, tout est relayé dans l'ordre, une seule fois ; les messages d'avant l'arrêt restent."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c2@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    avant = _flux(plateforme)
+    plateforme.compose("stop", "nats")
+    try:
+        _modifier(gerant_choregraphies, uid, role="operateur")
+        _modifier(gerant_choregraphies, uid, statut="suspendu")
+        _modifier(gerant_choregraphies, uid, statut="actif")
+        time.sleep(6)  # au moins deux tours du worker (toutes les 2 s) : rien ne doit partir
+        assert [r for _, _, r in _outbox(plateforme, uid)] == [True, False, False, False]
+        code, sante = _sante(plateforme)
+        assert code == 200
+        assert int(str(sante["outbox_en_attente"])) >= 3
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "nats")
+    outbox = _tout_relaye(plateforme, uid, 4)
+    apres = _flux(plateforme)
+    assert apres.messages[: len(avant.messages)] == avant.messages
+    types = _une_fois_dans_l_ordre(apres, outbox, uid)
+    assert types == [
+        "utilisateur.cree",
+        "utilisateur.role_change",
+        "utilisateur.suspendu",
+        "utilisateur.reactive",
+    ]
+
+
+def test_choregraphie__identity_tue_avec_un_evenement_en_attente__relaye_une_fois_au_redemarrage(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C3 : identity tué (SIGKILL) juste après une écriture. NATS est arrêté pendant l'écriture pour que
+    l'événement soit sûrement en attente au moment du kill ; au redémarrage, il part une fois."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c3@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    plateforme.compose("stop", "nats")
+    try:
+        _modifier(gerant_choregraphies, uid, statut="suspendu")
+        assert [r for _, _, r in _outbox(plateforme, uid)] == [True, False]
+        plateforme.compose("kill", "identity")
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "nats")
+        plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "identity")
+    outbox = _tout_relaye(plateforme, uid, 2)
+    types = _une_fois_dans_l_ordre(_flux(plateforme), outbox, uid)
+    assert types == ["utilisateur.cree", "utilisateur.suspendu"]
+
+
+def _erreur_commune_sans_detail_technique(r: httpx.Response) -> None:
+    assert r.status_code >= 500, (r.status_code, r.text[:300])
+    assert r.headers.get("content-type", "").startswith("application/json"), (r.status_code, r.text[:300])
+    assert set(r.json()) == {"code", "message", "details", "trace_id"}, r.text
+    for mot in ("psycopg", "sqlalchemy", "postgres", "traceback", "operationalerror", "connection"):
+        assert mot not in r.text.lower(), r.text
+
+
+def test_choregraphie__postgresql_arrete__ecritures_refusees_au_format_commun_puis_reprise_sans_perte(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C5 : base arrêtée, une écriture est refusée au format d'erreur commun, sans détail technique, que la
+    vérification d'identité de nginx soit en cache (10 s) ou non ; /internal/healthz signale la panne. Au
+    retour de la base, le worker reprend seul : l'écriture suivante est relayée, les refusées sans trace."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c5@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    assert gerant_choregraphies.client.get("/api/identity/utilisateurs").status_code == 200  # cache de nginx
+    plateforme.compose("stop", "postgres")
+    try:
+        _erreur_commune_sans_detail_technique(
+            _ecrire(gerant_choregraphies, "PATCH", f"/{uid}", {"role": "operateur"})
+        )
+        time.sleep(11)  # vérification d'identité sortie du cache de nginx
+        _erreur_commune_sans_detail_technique(
+            _ecrire(gerant_choregraphies, "PATCH", f"/{uid}", {"role": "operateur"})
+        )
+        code, sante = _sante(plateforme)
+        assert (code, sante["base"], sante["status"]) == (503, "ko", "ko")
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "postgres")
+    _attendre(
+        lambda: _sante(plateforme)[1].get("worker") == "ok", "worker de nouveau vu par /internal/healthz"
+    )
+    _modifier(gerant_choregraphies, uid, statut="suspendu")
+    outbox = _tout_relaye(plateforme, uid, 2)
+    types = _une_fois_dans_l_ordre(_flux(plateforme), outbox, uid)
+    assert types == ["utilisateur.cree", "utilisateur.suspendu"]
+
+
+def test_postgresql_arrete__pages_en_html_indisponible__json_reserve_aux_appels_d_api(
+    plateforme: Plateforme,
+) -> None:
+    """La réponse JSON 503 de nginx (@indisponible) ne s'applique qu'à /api/ : une page ouverte par une
+    navigation complète pendant l'arrêt de la base reste une page HTML (« Information momentanément
+    indisponible », UX-30), jamais du JSON brut."""
+    plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "front", faux_front=False)
+    session = _connecter(plateforme, "pages-sans-base@essai.local")
+    plateforme.compose("stop", "postgres")
+    try:
+        time.sleep(11)  # vérification d'identité sortie du cache de nginx
+        for chemin in ("/", "/administration/utilisateurs"):
+            page = session.client.get(chemin, follow_redirects=False)
+            assert page.status_code == 200, (chemin, page.status_code, page.text[:300])
+            assert page.headers["content-type"].startswith("text/html"), (
+                chemin,
+                page.headers["content-type"],
+            )
+            assert "Information momentanément indisponible" in page.text, chemin
+            assert "service_indisponible" not in page.text, chemin
+        publique = session.client.get("/connexion", follow_redirects=False)
+        assert publique.headers["content-type"].startswith("text/html")
+        api = session.client.get("/api/identity/moi")
+        assert (api.status_code, api.json()["code"]) == (503, "service_indisponible")
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "postgres")
+    session.client.close()
+
+
+def test_choregraphie__plateforme_arretee_puis_redemarree__flux_et_outbox_gardes_sans_doublon(
+    plateforme: Plateforme, gerant_choregraphies: Session
+) -> None:
+    """C6 : arrêt complet (docker compose stop) puis redémarrage : flux et outbox inchangés, aucun message
+    republié ; une nouvelle écriture est relayée une fois."""
+    uid = _inviter_et_activer(plateforme, gerant_choregraphies, "c6@essai.local")
+    _tout_relaye(plateforme, uid, 1)
+    avant = _flux(plateforme)
+    plateforme.compose("stop")
+    _demarrer(plateforme)
+    _attendre(lambda: _sante(plateforme)[1].get("worker") == "ok", "worker vu par /internal/healthz")
+    time.sleep(6)  # quelques tours du worker : rien ne doit être republié
+    assert _flux(plateforme).messages == avant.messages
+    gerant = _reconnecter(plateforme, gerant_choregraphies)
+    _modifier(gerant, uid, statut="suspendu")
+    outbox = _tout_relaye(plateforme, uid, 2)
+    apres = _flux(plateforme)
+    assert apres.messages[: len(avant.messages)] == avant.messages
+    assert len(apres.messages) == len(avant.messages) + 1
+    assert _une_fois_dans_l_ordre(apres, outbox, uid) == ["utilisateur.cree", "utilisateur.suspendu"]

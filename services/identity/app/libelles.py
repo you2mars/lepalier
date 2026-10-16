@@ -24,3 +24,8 @@ def message(cle: str) -> str:
 
 def message_mot_de_passe(motif: Motif) -> str:
     return message(f"mot_de_passe.{motif.value}")
+
+
+def libelle_role(role: str) -> str:
+    """« Associé » pour « associe » : un rôle de contracts/enums.json."""
+    return message(f"role.{role}")

@@ -1,8 +1,11 @@
 """Outbox transactionnelle et relais vers NATS JetStream (TEC-DAT-04, TEC-JOB-08).
 
 L'événement est écrit dans `outbox` dans la même transaction que la donnée ; le worker le relaie ensuite dans
-l'ordre des identifiants (UUID v7). L'en-tête `Nats-Msg-Id` = id de l'événement fait dédoublonner par
-JetStream une republication après un crash entre la publication et le marquage.
+l'ordre des identifiants (UUID v7), chaque marquage validé dès la publication confirmée. L'en-tête
+`Nats-Msg-Id` = id de l'événement fait dédoublonner par JetStream une republication après un crash entre la
+publication et le marquage, si elle a lieu dans la fenêtre de dédoublonnage. Garantie : au moins une fois
+dans le flux ; exactement une fois en effet chez le consommateur grâce à son inbox (au-delà de la fenêtre, un
+doublon reste possible dans le flux).
 """
 
 from __future__ import annotations
@@ -25,7 +28,8 @@ from commun.enveloppe import Enveloppe, Producteur
 
 log = logging.getLogger("commun.outbox")
 
-FENETRE_DEDOUBLONNAGE = timedelta(minutes=2)
+# inférieure à la conservation du flux (illimitée, max_age=0), exigé par JetStream
+FENETRE_DEDOUBLONNAGE = timedelta(hours=1)
 
 
 def table_outbox(metadata: MetaData) -> Table:
@@ -65,9 +69,13 @@ def nom_flux(producteur: Producteur) -> str:
 
 
 async def assurer_flux(js: JetStreamContext, producteur: Producteur) -> None:
-    """Crée le flux du producteur s'il n'existe pas : fichier, rétention illimitée (le flux sert au rejeu)."""
+    """Crée le flux du producteur s'il n'existe pas : fichier, rétention illimitée (le flux sert au rejeu).
+
+    Un flux existant garde ses messages ; sa fenêtre de dédoublonnage est portée à FENETRE_DEDOUBLONNAGE.
+    """
+    fenetre = FENETRE_DEDOUBLONNAGE.total_seconds()
     try:
-        await js.stream_info(nom_flux(producteur))
+        info = await js.stream_info(nom_flux(producteur))
     except NotFoundError:
         await js.add_stream(
             StreamConfig(
@@ -79,9 +87,13 @@ async def assurer_flux(js: JetStreamContext, producteur: Producteur) -> None:
                 max_age=0,
                 max_msgs=-1,
                 max_bytes=-1,
-                duplicate_window=FENETRE_DEDOUBLONNAGE.total_seconds(),
+                duplicate_window=fenetre,
             )
         )
+        return
+    if info.config.duplicate_window != fenetre:
+        info.config.duplicate_window = fenetre
+        await js.update_stream(info.config)
 
 
 class Outbox:
@@ -107,29 +119,38 @@ class Outbox:
     async def relayer(self, fabrique: Callable[[], Session], publieur: Publieur, limite: int = 100) -> int:
         """Publie au plus `limite` événements non relayés, dans l'ordre ; s'arrête au premier échec.
 
-        Retourne le nombre d'événements publiés et marqués. Les accès base passent par `asyncio.to_thread`
-        pour ne pas bloquer la boucle du worker ; la session n'est utilisée que par un fil à la fois.
+        Chaque événement a sa transaction : verrou, publication, marquage, validation. Un arrêt du worker ne
+        fait donc republier que l'événement en cours. Retourne le nombre d'événements publiés et marqués.
         """
-        session = await asyncio.to_thread(fabrique)
         publies = 0
+        while publies < limite and await self._relayer_un(fabrique, publieur):
+            publies += 1
+        return publies
+
+    async def _relayer_un(self, fabrique: Callable[[], Session], publieur: Publieur) -> bool:
+        """Les accès base passent par `asyncio.to_thread` pour ne pas bloquer la boucle du worker ; la session
+        n'est utilisée que par un fil à la fois."""
+        session = await asyncio.to_thread(fabrique)
         try:
-            lignes = await asyncio.to_thread(self._a_relayer, session, limite)
-            for ligne in lignes:
-                env = self._enveloppe(ligne)
-                try:
-                    await publieur.publier(env.sujet(), env.en_json(), str(env.id))
-                except Exception:
-                    log.exception("relais interrompu", extra={"event_id": str(env.id)})
-                    break
-                await asyncio.to_thread(self._marquer_relaye, session, env.id)
-                publies += 1
+            lignes = await asyncio.to_thread(self._a_relayer, session, 1)
+            if not lignes:
+                await asyncio.to_thread(session.rollback)
+                return False
+            env = self._enveloppe(lignes[0])
+            try:
+                await publieur.publier(env.sujet(), env.en_json(), str(env.id))
+            except Exception:
+                log.exception("relais interrompu", extra={"event_id": str(env.id)})
+                await asyncio.to_thread(session.rollback)
+                return False
+            await asyncio.to_thread(self._marquer_relaye, session, env.id)
             await asyncio.to_thread(session.commit)
+            return True
         except BaseException:
             await asyncio.to_thread(session.rollback)
             raise
         finally:
             await asyncio.to_thread(session.close)
-        return publies
 
     def _a_relayer(self, session: Session, limite: int) -> Sequence[RowMapping]:
         t = self.table

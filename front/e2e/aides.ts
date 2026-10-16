@@ -1,0 +1,251 @@
+// Aides des essais de bout en bout : toute violation de la politique de sécurité (CSP) signalée par le
+// navigateur ou dans la console fait échouer l'essai ; contrôle d'accessibilité axe-core (WCAG 2.1 AA).
+import { createHmac } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Page, test as base } from "@playwright/test";
+import { TEXTES } from "../src/textes";
+
+declare global {
+  interface Window {
+    __violationsCsp: string[];
+  }
+}
+
+// limite de débit de /api/identity/auth/ : haute dans le projet d'essai (compose.essai.yml), aucun espacement ici ;
+// la vraie limite est vérifiée par N13 (scripts/tests/test_plateforme.py)
+// Sessions enregistrées (storageState) : un compte de l'administration se connecte une seule fois par projet ; les
+// essais qui ne testent pas la connexion repartent de cette session. Les essais de connexion, de code, d'activation,
+// de l'accueil et de suspension se connectent eux-mêmes. Session et dernier code TOTP sont gardés dans des fichiers
+// du dossier temporaire du conteneur : Playwright relance son travailleur après un échec, et un nouveau travailleur
+// qui se reconnecterait dans la même fenêtre de 30 s serait refusé (anti-rejeu).
+type RoleAdmin = "gerant" | "associe";
+
+// Diagnostic seulement (vides d'ordinaire) : LEPALIER_E2E_RALENTI=4 ralentit le processeur de Chromium (×4, par le
+// protocole de débogage) sur chaque page, y compris celle qui ouvre une session enregistrée ; LEPALIER_E2E_SESSION_NEUVE=1
+// ouvre la session enregistrée à chaque essai, pour rejouer la connexion avec --repeat-each.
+const RALENTI = Number(process.env.LEPALIER_E2E_RALENTI ?? "0");
+const SESSION_NEUVE = process.env.LEPALIER_E2E_SESSION_NEUVE === "1";
+
+async function ralentir(page: Page): Promise<void> {
+  if (RALENTI > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: RALENTI });
+  }
+}
+
+// page prise en main par React (SignalHydratation) : avant, un clic ou une saisie serait perdu ou défait
+export async function pret(page: Page): Promise<void> {
+  await page.locator("html[data-hydrate]").waitFor({ state: "attached" });
+}
+
+// contenu de la page connectée : quand la page arrive en flux (squelette de loading.tsx d'abord), React l'envoie dans
+// un bloc caché <div hidden id="S:…"> hors de <main id="contenu">, puis un script ($RC) l'y déplace ; pendant ce
+// passage, un getByText sur toute la page a trouvé le texte deux fois (essai du 15 octobre 2026)
+export function contenu(page: Page) {
+  return page.locator("#contenu");
+}
+
+export const test = base.extend<{ violationsCsp: string[]; sessionAdmin: RoleAdmin | undefined }>({
+  sessionAdmin: [undefined, { option: true }],
+  // chaque page.goto attend la prise en main de la page par React (sauf about:blank)
+  page: async ({ page }, utiliser) => {
+    const aller = page.goto.bind(page);
+    page.goto = async (adresse, options) => {
+      const reponse = await aller(adresse, options);
+      if (!adresse.startsWith("about:")) await pret(page);
+      return reponse;
+    };
+    await ralentir(page);
+    await utiliser(page);
+  },
+  storageState: async ({ sessionAdmin, browser, baseURL, storageState }, utiliser, infos) => {
+    if (!sessionAdmin) return utiliser(storageState);
+    const compte = compteAdmin(sessionAdmin, infos.project.name);
+    const chemin = join(tmpdir(), `lepalier-session-${infos.project.name}-${sessionAdmin}.json`);
+    if (SESSION_NEUVE || !existsSync(chemin)) {
+      const contexte = await browser.newContext({ baseURL, ignoreHTTPSErrors: true, locale: "fr-FR" });
+      // contexte hors de la trace de l'essai : sa propre trace, gardée seulement si la connexion échoue
+      await contexte.tracing.start({ screenshots: true, snapshots: true });
+      const page = await contexte.newPage();
+      await ralentir(page);
+      try {
+        await seConnecter(page, compte.email, compte.secret);
+      } catch (erreur) {
+        await contexte.tracing.stop({ path: infos.outputPath("trace-connexion.zip") });
+        throw erreur;
+      }
+      await contexte.tracing.stop();
+      await contexte.storageState({ path: chemin });
+      await contexte.close();
+    }
+    await utiliser(chemin);
+  },
+  violationsCsp: [
+    async ({ page }, utiliser) => {
+      const violations: string[] = [];
+      await page.addInitScript(() => {
+        window.__violationsCsp = [];
+        document.addEventListener("securitypolicyviolation", (e) => {
+          window.__violationsCsp.push(`${e.violatedDirective} ${e.blockedURI}`);
+        });
+      });
+      page.on("console", (message) => {
+        const texte = message.text();
+        if (/Content Security Policy|Refused to (execute|load|apply|connect)/i.test(texte)) violations.push(texte);
+      });
+      await utiliser(violations);
+      const signalees = await page.evaluate(() => window.__violationsCsp ?? []).catch(() => []);
+      expect([...violations, ...signalees], "violations de la politique de sécurité (CSP)").toEqual([]);
+    },
+    { auto: true },
+  ],
+});
+
+export { expect };
+
+export async function verifierAccessibilite(page: Page): Promise<void> {
+  const resultat = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  expect(resultat.violations.map((v) => `${v.id} : ${v.help}`)).toEqual([]);
+}
+
+export const COMPTE = {
+  email: process.env.LEPALIER_E2E_EMAIL ?? "",
+  motDePasse: process.env.LEPALIER_E2E_MOT_DE_PASSE ?? "",
+};
+
+// Comptes de l'écran du code, un par projet Playwright (l'anti-rejeu refuse deux fois un même code TOTP) :
+// clé TOTP en hexadécimal et deux codes de secours, créés par scripts/tests/test_plateforme.py.
+type CompteCode = { email: string; secret: string; secours: string[]; nom?: string };
+
+function lireCompte(variable: string, projet: string): CompteCode {
+  const comptes = JSON.parse(process.env[variable] ?? "{}") as Record<string, CompteCode>;
+  const compte = comptes[projet];
+  if (!compte) throw new Error(`compte absent pour le projet ${projet} (${variable})`);
+  return compte;
+}
+
+export function compteCode(projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_CODE", projet);
+}
+
+// gérant de l'essai de l'accueil, un par projet
+export function compteAccueil(projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_ACCUEIL", projet);
+}
+
+// RFC 6238 (SHA-1, 6 chiffres, pas de 30 s), comme les applications d'authentification
+export function codeTotp(secretHex: string, decalagePas = 0): string {
+  const compteur = Buffer.alloc(8);
+  compteur.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000) + decalagePas));
+  const empreinte = createHmac("sha1", Buffer.from(secretHex, "hex")).update(compteur).digest();
+  const decalage = empreinte[empreinte.length - 1]! & 0x0f;
+  return String((empreinte.readUInt32BE(decalage) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+// un code à 6 chiffres qu'aucun pas proche n'accepte
+export function codeFaux(secretHex: string): string {
+  const proches = new Set([-2, -1, 0, 1, 2].map((d) => codeTotp(secretHex, d)));
+  for (let n = 0; ; n++) {
+    const code = String(n).padStart(6, "0");
+    if (!proches.has(code)) return code;
+  }
+}
+
+// Jeton du lien d'invitation du projet (une invitation par projet : l'activation la consomme).
+export function jetonInvitation(projet: string): string {
+  const jetons = JSON.parse(process.env.LEPALIER_E2E_INVITATIONS ?? "{}") as Record<string, string>;
+  const jeton = jetons[projet];
+  if (!jeton) throw new Error(`invitation absente pour le projet ${projet}`);
+  return jeton;
+}
+
+// Clé affichée à l'écran (base32, RFC 4648, espaces tolérés) en hexadécimal, pour codeTotp.
+export function base32EnHex(cle: string): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const caractere of cle.replace(/\s+/g, "").toUpperCase()) {
+    const valeur = alphabet.indexOf(caractere);
+    if (valeur < 0) throw new Error(`caractère hors base32 : ${caractere}`);
+    bits += valeur.toString(2).padStart(5, "0");
+  }
+  const octets = bits.match(/.{8}/g) ?? [];
+  return octets.map((o) => parseInt(o, 2).toString(16).padStart(2, "0")).join("");
+}
+
+// gérant ou associé de l'essai de l'administration, un de chaque par projet
+export function compteAdmin(role: "gerant" | "associe", projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${role}-${projet}`);
+}
+
+// dernier pas TOTP utilisé par clé, gardé dans un fichier (survit à la relance du travailleur) : identity refuse deux
+// fois le même code (anti-rejeu), y compris d'un essai à l'autre pour un même compte
+async function codeNeuf(secretHex: string): Promise<string> {
+  const fichier = join(tmpdir(), `lepalier-totp-${secretHex.slice(0, 16)}.txt`);
+  const dernier = existsSync(fichier) ? Number(readFileSync(fichier, "utf8")) : -1;
+  const pas = Math.floor(Date.now() / 30000);
+  if (dernier >= pas) await new Promise((fin) => setTimeout(fin, (pas + 1) * 30000 - Date.now() + 200));
+  writeFileSync(fichier, String(Math.floor(Date.now() / 30000)));
+  return codeTotp(secretHex);
+}
+
+// comptes visés par les actions de l'administration (6.3, 6.4) : associé actif, invitation, rôle à changer, gérant
+// qui quitte son rôle ; un de chaque par projet
+export function compteVise(genre: "cible" | "invite" | "role" | "quitte", projet: string): CompteCode {
+  return lireCompte("LEPALIER_E2E_COMPTES_ADMIN", `${genre}-${projet}`);
+}
+
+// compte et lien de réinitialisation de l'écran 9, un par projet
+export function reinitialisation(projet: string): { email: string; secret: string; jeton: string } {
+  const liens = JSON.parse(process.env.LEPALIER_E2E_REINITIALISATIONS ?? "{}") as Record<
+    string,
+    { email: string; secret: string; jeton: string }
+  >;
+  const lien = liens[projet];
+  if (!lien) throw new Error(`lien de réinitialisation absent pour le projet ${projet}`);
+  return lien;
+}
+
+// connexion complète : adresse, mot de passe (MOT_DE_PASSE de l'essai), puis code de l'application
+export async function seConnecter(page: Page, email: string, secretHex: string): Promise<void> {
+  // pret après chaque nouveau document (la page d'une session enregistrée n'a pas le goto qui l'appelle) : un
+  // formulaire envoyé avant la prise en main part tel quel au navigateur, qui recharge la même page champs vidés
+  // (avant-hydratation.spec.ts)
+  await page.goto("/connexion");
+  await pret(page);
+  await page.getByLabel(TEXTES.connexion.adresse).fill(email);
+  await page.getByLabel(TEXTES.connexion.motDePasse, { exact: true }).fill(COMPTE.motDePasse);
+  await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
+  // écran du code : nouveau document (navigation complète) ; adresse attendue avant pret, sinon pret trouverait
+  // encore la page quittée
+  await page.waitForURL(/\/connexion\/code/, { timeout: 15000 });
+  await pret(page);
+  // champ attendu avant le code : codeNeuf peut attendre jusqu'à 30 s le pas TOTP suivant, et un échec doit dire
+  // lequel des deux a manqué
+  const champ = page.getByLabel(TEXTES.code.libelle);
+  await expect(champ).toBeVisible({ timeout: 15000 });
+  await champ.fill(await codeNeuf(secretHex));
+  await page.getByRole("button", { name: TEXTES.connexion.bouton }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(TEXTES.accueil.titre);
+}
+
+// Après une écriture suivie d'une navigation : si l'adresse ne change pas, l'échec dit ce que la page affiche
+// (bandeau d'erreur ou de refus) ; sans cela, une panne d'écriture et une navigation perdue se ressemblent.
+export async function attendreAdresse(page: Page, motif: RegExp): Promise<void> {
+  try {
+    await expect(page).toHaveURL(motif);
+  } catch (erreur) {
+    const bandeaux = await page.locator(".bandeau").allTextContents();
+    const boite = await page.locator("dialog[open]").allTextContents();
+    throw new Error(
+      `${(erreur as Error).message}\nBandeaux affichés : ${JSON.stringify(bandeaux)}\nBoîte ouverte : ${JSON.stringify(boite)}`,
+    );
+  }
+}
+
+export async function sansDefilementHorizontal(page: Page): Promise<void> {
+  const largeurs = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+  expect(largeurs[0]).toBeLessThanOrEqual(largeurs[1]!);
+}
