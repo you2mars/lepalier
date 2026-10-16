@@ -80,9 +80,17 @@ Mobile, et toute largeur utile inférieure à 48 rem (zoom 200 % sur un écran d
   quelques instants. »
 - Trop de demandes (429 de nginx) : « Trop de demandes en peu de temps. Patientez une minute, puis réessayez. »
   (validé au bloc C de l'étape 5).
+- Service injoignable (503 de nginx sur `/api/`, décision du 16 octobre 2026) : bandeau « Erreur » + [commun]
+  « Le service est momentanément indisponible. Réessayez dans un instant. » ; une page ouverte reste une page HTML.
+- Page introuvable (404) : [commun] « Cette page ou cette information n'existe pas. » et le lien « Retour à
+  l'accueil », dans le cadre connecté quand la session est valide, sinon dans le cadre public (constat UX (5),
+  16 octobre 2026).
 - Bloc indisponible : « Information momentanément indisponible » (UX-30), les autres blocs restent.
 - Chargement : squelette gris à la place du contenu ; bouton d'envoi désactivé pendant l'envoi, avec le texte
   **⟦NOUVEAU⟧** « Envoi en cours… » (UX-22).
+- Page pas encore prête (téléphone lent, constat UX (18), 16 octobre 2026) : un clic sur le bouton d'envoi avant la
+  prise en main de la page par React n'envoie rien et garde les champs remplis ; le même bouton fonctionne dès que
+  la page est prête. Aucun texte affiché.
 - Écritures de l'administration : clé d'idempotence générée par le formulaire (UX-22). Messages possibles :
   [libellé : idempotence.cle_manquante], [libellé : idempotence.requete_en_cours], [libellé : idempotence.cle_reutilisee].
 
@@ -562,6 +570,9 @@ Code de vérification
 
 Vous n'avez plus votre téléphone ni vos codes de secours ?            ← ⟦NOUVEAU⟧ (B3, même texte qu'à l'écran 2)
 Demandez au gérant de la SCI de réinitialiser votre accès.
+
+Retour à la connexion                    ← lien vers Se connecter (constat UX (14), 16 octobre 2026), aussi sous
+                                            « Mot de passe oublié » quand la page ne montre qu'un message
 ```
 - 204 → écran 1 avec le bandeau « Fait » + « Votre mot de passe a été changé. Connectez-vous avec le nouveau mot de
   passe. » **⟦NOUVEAU⟧**.
