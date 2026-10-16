@@ -213,6 +213,24 @@ def test_admin_reinitialiser_acces__lien_precedent_invalide(fabrique: sessionmak
     assert c.post("/auth/activation/debut", json={"jeton": _jeton(seconde)}).status_code == 200
 
 
+@pytest.mark.parametrize("expire", [False, True], ids=["invitation_envoyee", "invitation_expiree"])
+def test_admin_reinitialiser_acces__gerant_jamais_active__nouveau_lien_qui_active(
+    fabrique: sessionmaker[Session], expire: bool
+) -> None:
+    """Commande proposée par make recette LOT=0 quand le gérant du jeu est encore invité."""
+    _, premiere, _ = _creer(fabrique)
+    if expire:
+        with fabrique() as s, s.begin():
+            s.execute(update(INVITATION).values(expire_le=func.now() - timedelta(minutes=1)))
+    code, sortie, erreur = _lancer(fabrique, "reinitialiser-acces", "--email", EMAIL)
+    assert (code, erreur) == (0, "")
+    c = client(fabrique)
+    assert c.post("/auth/activation/debut", json={"jeton": _jeton(premiere)}).status_code == 410
+    assert c.post("/auth/activation/debut", json={"jeton": _jeton(sortie)}).status_code == 200
+    (u,) = lignes(fabrique, UTILISATEUR)
+    assert (u["role"], u["statut"]) == ("gerant", "invite")
+
+
 @pytest.mark.parametrize("role", ["gerant", "associe", "operateur"])
 def test_admin_reinitialiser_acces__tous_les_roles(fabrique: sessionmaker[Session], role: str) -> None:
     creer_compte(fabrique, email=EMAIL, role=role)

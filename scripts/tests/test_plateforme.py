@@ -11,6 +11,7 @@ import hmac
 import json
 import os
 import re
+import shlex
 import socket
 import ssl
 import struct
@@ -1036,3 +1037,47 @@ def _limite_de_debit_reelle(plateforme: Plateforme) -> None:
         {},
     )
     assert re.fullmatch(r"[0-9a-f]{32}", corps["trace_id"])
+
+
+# --- jeu de recette du lot 0 ----------------------------------------------------------------------------
+
+
+def test_recette_lot0__jeu_cree_dans_identity__invitations_au_nom_du_gerant_puis_relance_sans_effet(
+    plateforme: Plateforme,
+) -> None:
+    """make recette LOT=0 sur le projet d'essai : lien du gérant affiché une fois, deux invitations."""
+    prefixe = ["docker", "compose", "-f", str(RACINE / "compose.dev.yml"), "-f", str(ESSAI)]
+    env = {
+        **plateforme.env,
+        "LEPALIER_COMPOSE": shlex.join([*prefixe, "--env-file", str(plateforme.fichier_env), "-p", PROJET]),
+    }
+
+    def lancer() -> subprocess.CompletedProcess[str]:
+        commande = ["python3", str(RACINE / "scripts" / "recette" / "lot-0.py")]
+        return subprocess.run(commande, cwd=RACINE, env=env, capture_output=True, text=True, check=False)
+
+    premier = lancer()
+    assert premier.returncode == 0, premier.stdout + premier.stderr
+    assert len(re.findall(r"/activation#[A-Za-z0-9_-]{43}", premier.stdout)) == 1
+    assert premier.stdout.count("Invitation créée pour") == 2
+    invite_par = plateforme.python(
+        "from sqlalchemy import select; from app.db import fabrique; from app.models import UTILISATEUR;"
+        "s = fabrique()(); r = dict(s.execute(select(UTILISATEUR.c.email, UTILISATEUR.c.invite_par)).all());"
+        "print(r['associe.jeu@test.local'] == r['operateur.jeu@test.local'] == "
+        "s.execute(select(UTILISATEUR.c.id).where(UTILISATEUR.c.email == 'gerant@test.local')).scalar_one())"
+    )
+    assert invite_par.stdout.strip() == "True"
+    api = f"http://127.0.0.1:{plateforme.env['LEPALIER_PORT_MAILPIT']}/api/v1"
+    attendus = {"associe.jeu@test.local", "operateur.jeu@test.local"}
+    recus: set[str] = set()
+    limite = time.monotonic() + 60
+    while time.monotonic() < limite and recus != attendus:
+        messages = httpx.get(f"{api}/messages").json()["messages"]
+        recus = {d["Address"] for m in messages for d in m["To"]} & attendus
+        time.sleep(1)
+    assert recus == attendus
+
+    second = lancer()
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert "/activation#" not in second.stdout
+    assert second.stdout.count("déjà présent") == 3
