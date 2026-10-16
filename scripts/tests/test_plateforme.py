@@ -1438,6 +1438,35 @@ def test_choregraphie__postgresql_arrete__ecritures_refusees_au_format_commun_pu
     assert types == ["utilisateur.cree", "utilisateur.suspendu"]
 
 
+def test_postgresql_arrete__pages_en_html_indisponible__json_reserve_aux_appels_d_api(
+    plateforme: Plateforme,
+) -> None:
+    """La réponse JSON 503 de nginx (@indisponible) ne s'applique qu'à /api/ : une page ouverte par une
+    navigation complète pendant l'arrêt de la base reste une page HTML (« Information momentanément
+    indisponible », UX-30), jamais du JSON brut."""
+    plateforme.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "240", "front", faux_front=False)
+    session = _connecter(plateforme, "pages-sans-base@essai.local")
+    plateforme.compose("stop", "postgres")
+    try:
+        time.sleep(11)  # vérification d'identité sortie du cache de nginx
+        for chemin in ("/", "/administration/utilisateurs"):
+            page = session.client.get(chemin, follow_redirects=False)
+            assert page.status_code == 200, (chemin, page.status_code, page.text[:300])
+            assert page.headers["content-type"].startswith("text/html"), (
+                chemin,
+                page.headers["content-type"],
+            )
+            assert "Information momentanément indisponible" in page.text, chemin
+            assert "service_indisponible" not in page.text, chemin
+        publique = session.client.get("/connexion", follow_redirects=False)
+        assert publique.headers["content-type"].startswith("text/html")
+        api = session.client.get("/api/identity/moi")
+        assert (api.status_code, api.json()["code"]) == (503, "service_indisponible")
+    finally:
+        plateforme.compose("up", "-d", "--no-deps", "--wait", "--wait-timeout", "120", "postgres")
+    session.client.close()
+
+
 def test_choregraphie__plateforme_arretee_puis_redemarree__flux_et_outbox_gardes_sans_doublon(
     plateforme: Plateforme, gerant_choregraphies: Session
 ) -> None:
