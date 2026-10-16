@@ -92,7 +92,8 @@ a { color: var(--action); text-underline-offset: 0.15em; }
 .bouton-principal { width: 100%; background: var(--action); color: var(--action-texte); border: var(--trait-epais) solid var(--action); }
 .bouton-secondaire { background: var(--fond); color: var(--action); border: var(--trait-epais) solid var(--action); }
 .bouton-texte { background: none; color: var(--action); border: var(--trait) solid var(--bordure); }
-.bouton[disabled] { opacity: 0.7; cursor: progress; }
+/* désactivé pendant l'envoi : couleurs gardées (contraste AA), état dit par « Envoi en cours… » (UX-14) */
+.bouton[disabled] { cursor: progress; }
 
 .bandeau { border-left: var(--trait-bandeau) solid; padding: var(--espace) calc(var(--espace) * 2); margin: calc(var(--espace) * 2) 0; }
 .bandeau p { margin: 0; }

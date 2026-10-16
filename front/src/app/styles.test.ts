@@ -68,6 +68,12 @@ describe("globals.css : valeurs de conception seulement dans :root", () => {
     expect([...utilisees].filter((v) => !definies.has(v))).toEqual([]);
   });
 
+  it("aucune opacité réduite : elle ferait passer un texte sous 4,5:1 (bouton désactivé à 3,98:1, constat UX (4))", () => {
+    // l'état d'un bouton désactivé est dit par son texte (« Envoi en cours… », UX-14), pas par une couleur pâlie
+    const fautives = declarations.filter((d) => d.propriete === "opacity" && d.valeur !== "1");
+    expect(fautives).toEqual([]);
+  });
+
   it("le contrôle repère bien une couleur, une taille et un rayon en dur", () => {
     const essai = declarationsHorsRacine(
       ":root { --a: #fff; } .x { color: #e8e6e3; font-size: 1.125rem; border-radius: 4px; padding: var(--espace); }",
