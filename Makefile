@@ -9,7 +9,7 @@ ENV_FICHIER ?= .env
 DEPOT_GIT ?= .
 COMPOSE_DEV := docker compose -f compose.dev.yml
 # Toutes les cibles sont des commandes : sans .PHONY, `make contracts` ne fait rien car le dossier contracts/ existe
-.PHONY: help doctor dev-up dev-down dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images audit hooks recette tick ci
+.PHONY: help doctor dev-up dev-down dev-reinitialiser dev-certs dev-secrets logs test lint typecheck contracts docs-check migrate new-service test-gabarit test-plateforme images audit hooks recette recette-essais-echoues tick ci
 
 help: ## Liste des cibles
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n",$$1,$$2}'
@@ -31,6 +31,10 @@ dev-up: images ## Démarre la plateforme de développement (images locales) et a
 	$(COMPOSE_DEV) up -d --wait --wait-timeout 240
 dev-down: ## Arrête la plateforme (volumes conservés)
 	$(COMPOSE_DEV) down
+dev-reinitialiser: ## Efface les données de dev (base, flux NATS, Mailpit) et redémarre à vide : make dev-reinitialiser CONFIRMER=oui
+	@test "$(CONFIRMER)" = oui || { echo "Rien n'a été effacé. Cette commande supprime les comptes, les événements et les e-mails de la plateforme de dev ; pour confirmer : make dev-reinitialiser CONFIRMER=oui"; exit 1; }
+	$(COMPOSE_DEV) down --volumes --remove-orphans
+	$(MAKE) dev-up
 dev-certs: ## Certificat HTTPS auto-signé de la VM de dev et son adresse dans .env : make dev-certs [IP=192.168.1.20] [FORCE=1]
 	@ip="$(IP)"; [ -n "$$ip" ] || ip=$$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($$i=="src") print $$(i+1)}'); \
 	echo "$$ip" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$$' || { echo "Adresse IP de la VM introuvable ou invalide : make dev-certs IP=…"; exit 1; }; \
@@ -97,6 +101,10 @@ new-service: ## Crée un service : make new-service NAME=nom
 recette: ## Charge le jeu de données de recette d'un lot : make recette LOT=N
 	@if [ -f scripts/recette/lot-$(LOT).py ]; then uv run python scripts/recette/lot-$(LOT).py; else echo "scripts/recette/lot-$(LOT).py à générer avec /recette $(LOT)"; fi
 	@echo "Checklist : docs/RECETTE/lot-$(LOT).md"
+
+recette-essais-echoues: ## R0-49 : 20 essais de connexion échoués sur un compte : make recette-essais-echoues EMAIL=adresse
+	@test -n "$(EMAIL)" || { echo "Indiquez l'adresse du compte : make recette-essais-echoues EMAIL=adresse"; exit 1; }
+	@uv run python scripts/recette/lot-0.py essais-echoues "$(EMAIL)"
 
 tick: ## Planificateur quotidien de tous les services démarrés (recette) : make tick [JOUR=AAAA-MM-JJ]
 	@# seuls les services démarrés sont concernés ; une erreur d'un service démarré arrête la commande

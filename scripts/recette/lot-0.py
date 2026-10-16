@@ -55,6 +55,26 @@ par, email, nom, role = sys.argv[1:]
 inviter(fabrique(), UUID(par), email_saisi(email), nom_affiche_saisi(nom), role, None)
 """
 
+# R0-49 : 20 essais échoués en une heure sur un compte, par le service de connexion, 4 par adresse IP de
+# documentation (192.0.2.0/24) pour rester sous le verrou d'un couple adresse et compte (5 essais)
+ESSAIS_ECHOUES = """
+import sys
+from app.db import fabrique
+from app.securite import charger_cles
+from app.services.connexion import connecter
+from app.settings import settings
+from commun.erreurs import ErreurApi
+email = sys.argv[1]
+cles = charger_cles(settings.secrets_dir)
+for i in range(20):
+    try:
+        connecter(fabrique(), email, "essai de recette refuse", f"192.0.2.{i // 4 + 1}", cles)
+    except ErreurApi as refus:
+        assert refus.code == "identifiants_incorrects", refus.code
+    else:
+        raise SystemExit("mot de passe accepté")
+"""
+
 SUITE = "suivez docs/RECETTE/lot-0.md."
 
 
@@ -175,5 +195,28 @@ def charger(executer: Executer, sortie: TextIO) -> int:
     return 0
 
 
+def essais_echoues(executer: Executer, sortie: TextIO, email: str) -> int:
+    """R0-49 : déclenche l'e-mail « Nombreux essais de connexion » aux gérants actifs."""
+    try:
+        present = _comptes(executer).get(email.lower())
+    except Arret as arret:
+        sortie.write(f"{arret}\n")
+        return 1
+    if present is None:
+        sortie.write(f"Aucun compte {email} : aucun essai fait. Choisissez l'adresse d'un compte existant.\n")
+        return 1
+    r = executer(_identity("python", "-c", ESSAIS_ECHOUES, email), True)
+    if r.returncode != 0:
+        sortie.write(f"Les essais n'ont pas abouti ; réponse du service des comptes :\n{r.stderr.rstrip()}\n")
+        return 1
+    sortie.write(
+        f"20 essais de connexion échoués sur le compte {email}. L'e-mail « Nombreux essais de connexion » "
+        "arrive dans Mailpit pour chaque gérant actif, au plus une fois par heure et par compte.\n"
+    )
+    return 0
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["essais-echoues"]:
+        sys.exit(essais_echoues(executer_compose, sys.stdout, sys.argv[2]))
     sys.exit(charger(executer_compose, sys.stdout))

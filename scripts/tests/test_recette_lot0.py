@@ -43,6 +43,8 @@ class FauxCompose:
     comptes: list[dict[str, str]] = field(default_factory=list)
     identity_demarre: bool = True
     code_creer_gerant: int = 0
+    code_essais: int = 0
+    erreur_essais: str = ""
     appels: list[tuple[list[str], bool]] = field(default_factory=list)
 
     def __call__(self, arguments: list[str], capturer: bool) -> subprocess.CompletedProcess[str]:
@@ -60,6 +62,8 @@ class FauxCompose:
         assert commande[:2] == ["python", "-c"], commande
         if commande[2] == lot0.LIRE_COMPTES:
             return subprocess.CompletedProcess(arguments, 0, json.dumps(self.comptes) + "\n", "")
+        if commande[2] == lot0.ESSAIS_ECHOUES:
+            return subprocess.CompletedProcess(arguments, self.code_essais, "", self.erreur_essais)
         assert commande[2] == lot0.INVITER, commande
         par, email, _nom, role = commande[3:]
         assert par == GERANT_ID
@@ -253,3 +257,49 @@ def test_recette_lot0__code_lance_dans_identity__passe_par_le_service_sans_ecrit
     assert "email_saisi" in lot0.INVITER and "nom_affiche_saisi" in lot0.INVITER
     for code in (lot0.INVITER, lot0.LIRE_COMPTES):
         assert not any(mot in code for mot in ("insert", "update(", "execute", "sqlalchemy"))
+
+
+# --- make recette-essais-echoues (R0-49) -----------------------------------------------------------------
+
+
+def _essais(compose: FauxCompose, email: str) -> tuple[int, str]:
+    sortie = io.StringIO()
+    code = lot0.essais_echoues(compose, sortie, email)
+    return code, sortie.getvalue()
+
+
+def test_essais_echoues__compte_existant__20_essais_par_le_service_de_connexion() -> None:
+    compose = FauxCompose()
+    compose._ajouter("associe.jeu@test.local", "associe", GERANT_ID)
+    assert _essais(compose, "Associe.Jeu@test.local") == (
+        0,
+        "20 essais de connexion échoués sur le compte Associe.Jeu@test.local. L'e-mail « Nombreux essais "
+        "de connexion » arrive dans Mailpit pour chaque gérant actif, au plus une fois par heure et par "
+        "compte.\n",
+    )
+    assert compose.commandes() == [["python", "-c", lot0.ESSAIS_ECHOUES, "Associe.Jeu@test.local"]]
+
+
+def test_essais_echoues__compte_inconnu__aucun_essai() -> None:
+    compose = FauxCompose()
+    assert _essais(compose, "personne@test.local") == (
+        1,
+        "Aucun compte personne@test.local : aucun essai fait. Choisissez l'adresse d'un compte existant.\n",
+    )
+    assert compose.commandes() == []
+
+
+def test_essais_echoues__refus_inattendu__message_du_service() -> None:
+    compose = FauxCompose(code_essais=1, erreur_essais="SystemExit: mot de passe accepté\n")
+    compose._ajouter("associe.jeu@test.local", "associe", GERANT_ID)
+    code, sortie = _essais(compose, "associe.jeu@test.local")
+    assert (code, sortie) == (
+        1,
+        "Les essais n'ont pas abouti ; réponse du service des comptes :\nSystemExit: mot de passe accepté\n",
+    )
+
+
+def test_essais_echoues__code_lance_dans_identity__service_de_connexion_sans_ecriture_sql() -> None:
+    assert "services.connexion import connecter" in lot0.ESSAIS_ECHOUES
+    assert "192.0.2." in lot0.ESSAIS_ECHOUES and "i // 4" in lot0.ESSAIS_ECHOUES
+    assert not any(mot in lot0.ESSAIS_ECHOUES for mot in ("insert", "update(", "execute", "sqlalchemy"))
