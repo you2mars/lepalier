@@ -74,6 +74,8 @@ jobs:
           uv run ruff check . && uv run ruff format --check .
           if [ -d app/engines ]; then uv run mypy --strict app/engines; fi
           uv run pytest --cov-fail-under=80
+          # moteurs (fonctions pures) : 95 % au moins, bloquant (étape 8 du lot 0)
+          if [ -d app/engines ]; then uv run coverage report --include='app/engines/*' --fail-under=95; fi
   front:
     runs-on: ubuntu-latest
     steps:

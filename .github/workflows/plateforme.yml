@@ -10,6 +10,9 @@ on:
       - ".dockerignore"
       - "Makefile"
       - "scripts/tests/test_plateforme.py"
+      # code des images (outbox, worker, routes) : chorégraphies d'identity
+      - "services/**"
+      - "libs/**"
       - "scripts/tests/plateforme/**"
       - "front/**"
       - "contracts/libelles/**"
