@@ -134,6 +134,7 @@ def test_image__commande_tick_presente() -> None:
 
 PROJET = "lepalier-essai"
 ESSAI = RACINE / "scripts" / "tests" / "plateforme" / "compose.essai.yml"
+PORTS_ESSAI = RACINE / "scripts" / "tests" / "plateforme" / "compose.essai-ports.yml"
 
 
 def _port_libre() -> int:
@@ -155,23 +156,28 @@ class Plateforme:
     def https(self) -> str:
         return f"https://127.0.0.1:{self.env['LEPALIER_PORT_HTTPS']}"
 
+    def commande_compose(self, faux_front: bool = True) -> list[str]:
+        """docker compose sur le projet d'essai ; faux_front=False : le vrai front, sans fichier d'essai."""
+        return [
+            "docker",
+            "compose",
+            "-f",
+            str(RACINE / "compose.dev.yml"),
+            "-f",
+            str(PORTS_ESSAI),
+            *(["-f", str(ESSAI)] if faux_front else []),
+            # .env écrit par make dev-certs, comme sur la VM ; jamais le .env du dépôt
+            "--env-file",
+            str(self.fichier_env),
+            "-p",
+            PROJET,
+        ]
+
     def compose(
         self, *arguments: str, verifier: bool = True, faux_front: bool = True
     ) -> subprocess.CompletedProcess[str]:
-        """docker compose sur le projet d'essai ; faux_front=False : le vrai front, sans fichier d'essai."""
-        fichiers = ["-f", str(RACINE / "compose.dev.yml"), *(["-f", str(ESSAI)] if faux_front else [])]
         r = subprocess.run(
-            [
-                "docker",
-                "compose",
-                *fichiers,
-                # .env écrit par make dev-certs, comme sur la VM ; jamais le .env du dépôt
-                "--env-file",
-                str(self.fichier_env),
-                "-p",
-                PROJET,
-                *arguments,
-            ],
+            [*self.commande_compose(faux_front), *arguments],
             cwd=RACINE,
             env=self.env,
             capture_output=True,
@@ -181,6 +187,12 @@ class Plateforme:
         if verifier:
             assert r.returncode == 0, r.stdout + r.stderr
         return r
+
+    def port(self, service: str, port_conteneur: int) -> int:
+        """Port de l'hôte choisi par Docker (compose.essai-ports.yml), relu à chaque appel."""
+        hote, _, port = self.compose("port", service, str(port_conteneur)).stdout.strip().rpartition(":")
+        assert hote == "127.0.0.1", hote
+        return int(port)
 
     def python(self, code: str, verifier: bool = True) -> subprocess.CompletedProcess[str]:
         return self.compose("exec", "-T", "identity", "python", "-c", code, verifier=verifier)
@@ -211,11 +223,6 @@ def plateforme(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Plateforme]
         **{nom: valeur for nom, valeur in os.environ.items() if nom != "LEPALIER_URL_PUBLIQUE"},
         "SECRETS_DIR": str(secrets),
         "LEPALIER_SECRETS": str(secrets),
-        "LEPALIER_PORT_POSTGRES": str(_port_libre()),
-        "LEPALIER_PORT_NATS": str(_port_libre()),
-        "LEPALIER_PORT_NATS_SUIVI": str(_port_libre()),
-        "LEPALIER_PORT_MAILPIT": str(_port_libre()),
-        "LEPALIER_PORT_SMTP": str(_port_libre()),
         "LEPALIER_CERTS": str(certificats),
         "LEPALIER_ADRESSE_HTTPS": "127.0.0.1",
         "LEPALIER_PORT_HTTPS": str(_port_libre()),
@@ -264,6 +271,25 @@ def test_compose__commandes_sans_variable_dans_l_environnement(plateforme: Plate
     assert "identity" in plateforme.compose("ps", "--services", "--status", "running").stdout.split()
     assert plateforme.compose("exec", "-T", "identity", "true").returncode == 0
     assert plateforme.compose("logs", "--tail", "1", "identity").returncode == 0
+
+
+def test_compose__ports_publies_choisis_par_docker__distincts_sur_127_0_0_1(plateforme: Plateforme) -> None:
+    """Aucun port tiré à l'avance hors HTTPS : Docker attribue chaque port publié, jamais deux fois."""
+    config = json.loads(plateforme.compose("config", "--format", "json").stdout)
+    for service in ("postgres", "nats", "mailpit"):
+        assert all(p.get("published", "") == "" for p in config["services"][service]["ports"]), service
+    ports = [
+        plateforme.port(service, port)
+        for service, port in (
+            ("postgres", 5432),
+            ("nats", 4222),
+            ("nats", 8222),
+            ("mailpit", 8025),
+            ("mailpit", 1025),
+        )
+    ]
+    assert len(set(ports)) == 5, ports
+    assert int(plateforme.env["LEPALIER_PORT_HTTPS"]) not in ports
 
 
 def test_compose__reseaux_de_chaque_conteneur(plateforme: Plateforme) -> None:
@@ -399,7 +425,7 @@ def test_compose__lien_d_invitation_recu_dans_mailpit_sur_l_adresse_de_la_vm(pla
         ".where(UTILISATEUR.c.email == 'gerant@essai.local')).scalar_one();"
         "s.close(); inviter(f, g, 'associe@essai.local', 'Mme Durand', 'associe', None)"
     )
-    api = f"http://127.0.0.1:{plateforme.env['LEPALIER_PORT_MAILPIT']}/api/v1"
+    api = f"http://127.0.0.1:{plateforme.port('mailpit', 8025)}/api/v1"
     limite = time.monotonic() + 60
     messages: list[dict[str, object]] = []
     while time.monotonic() < limite and not messages:
@@ -1046,11 +1072,7 @@ def test_recette_lot0__jeu_cree_dans_identity__invitations_au_nom_du_gerant_puis
     plateforme: Plateforme,
 ) -> None:
     """make recette LOT=0 sur le projet d'essai : lien du gérant affiché une fois, deux invitations."""
-    prefixe = ["docker", "compose", "-f", str(RACINE / "compose.dev.yml"), "-f", str(ESSAI)]
-    env = {
-        **plateforme.env,
-        "LEPALIER_COMPOSE": shlex.join([*prefixe, "--env-file", str(plateforme.fichier_env), "-p", PROJET]),
-    }
+    env = {**plateforme.env, "LEPALIER_COMPOSE": shlex.join(plateforme.commande_compose())}
 
     def lancer() -> subprocess.CompletedProcess[str]:
         commande = ["python3", str(RACINE / "scripts" / "recette" / "lot-0.py")]
@@ -1067,7 +1089,7 @@ def test_recette_lot0__jeu_cree_dans_identity__invitations_au_nom_du_gerant_puis
         "s.execute(select(UTILISATEUR.c.id).where(UTILISATEUR.c.email == 'gerant@test.local')).scalar_one())"
     )
     assert invite_par.stdout.strip() == "True"
-    api = f"http://127.0.0.1:{plateforme.env['LEPALIER_PORT_MAILPIT']}/api/v1"
+    api = f"http://127.0.0.1:{plateforme.port('mailpit', 8025)}/api/v1"
     attendus = {"associe.jeu@test.local", "operateur.jeu@test.local"}
     recus: set[str] = set()
     limite = time.monotonic() + 60
