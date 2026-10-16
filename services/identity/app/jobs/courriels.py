@@ -17,16 +17,24 @@ from app.courriels import textes
 from app.courriels.envoi import Expediteur
 from app.engines import durees
 from app.engines.jetons import empreinte, nouveau_jeton
+from app.engines.verrouillage import PERIODE_ALERTE
 from app.models import APPAREIL, INVITATION, REINITIALISATION, UTILISATEUR
 from commun.ids import uuid7
 from commun.jobs import Gestionnaire, Job
 
 
 def _utilisateur(s: Session, utilisateur_id: str) -> tuple[str, str]:
-    email, nom = s.execute(
-        select(UTILISATEUR.c.email, UTILISATEUR.c.nom_affiche).where(UTILISATEUR.c.id == UUID(utilisateur_id))
-    ).one()
+    email, nom, _ = _utilisateur_et_role(s, utilisateur_id)
     return email, nom
+
+
+def _utilisateur_et_role(s: Session, utilisateur_id: str) -> tuple[str, str, str]:
+    email, nom, role = s.execute(
+        select(UTILISATEUR.c.email, UTILISATEUR.c.nom_affiche, UTILISATEUR.c.role).where(
+            UTILISATEUR.c.id == UUID(utilisateur_id)
+        )
+    ).one()
+    return email, nom, role
 
 
 def _gerants_actifs(s: Session) -> list[tuple[str, str]]:
@@ -75,9 +83,9 @@ def _utilisateur_verrouille(s: Session, job: Job) -> Any:
 
 
 def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestionnaire]:
-    def _lien_d_activation(s: Session, job: Job) -> tuple[Any, str] | None:
-        """Nouveau lien d'activation de 7 jours (utilisateur, lien), ou None si le compte n'est plus invité.
-        L'auteur est le gérant qui a agi (`par_utilisateur_id`), à défaut celui qui a invité."""
+    def _lien_d_activation(s: Session, job: Job) -> tuple[Any, str, datetime] | None:
+        """Nouveau lien d'activation de 7 jours (utilisateur, lien, fin du lien), ou None si le compte n'est
+        plus invité. L'auteur est le gérant qui a agi (`par_utilisateur_id`), à défaut celui qui a invité."""
         u = _utilisateur_verrouille(s, job)
         if u["statut"] != "invite":
             return None  # activé ou suspendu entre-temps : plus rien à envoyer
@@ -89,32 +97,35 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
         invalider_invitations(s, u["id"])
         jeton = nouveau_jeton()
         maintenant = s.execute(select(func.now())).scalar_one()
+        expire_le = durees.expiration_invitation(maintenant)
         s.execute(
             insert(INVITATION).values(
                 id=uuid7(),
                 utilisateur_id=u["id"],
                 empreinte=empreinte(jeton),
                 cree_le=maintenant,
-                expire_le=durees.expiration_invitation(maintenant),
+                expire_le=expire_le,
                 par_utilisateur_id=par,
             )
         )
-        return u, f"{url_publique.rstrip('/')}/activation#{jeton}"
+        return u, f"{url_publique.rstrip('/')}/activation#{jeton}", expire_le
 
     def invitation(s: Session, job: Job) -> None:
         cree = _lien_d_activation(s, job)
         if cree is not None:
-            u, lien = cree
+            u, lien, expire_le = cree
             nom_gerant = s.execute(
                 select(UTILISATEUR.c.nom_affiche).where(UTILISATEUR.c.id == u["invite_par"])
             ).scalar_one()
-            expediteur.envoyer(u["email"], textes.invitation(u["nom_affiche"], nom_gerant, lien))
+            expediteur.envoyer(
+                u["email"], textes.invitation(u["nom_affiche"], nom_gerant, u["role"], lien, expire_le)
+            )
 
     def acces_reinitialise(s: Session, job: Job) -> None:
         cree = _lien_d_activation(s, job)
         if cree is not None:
-            u, lien = cree
-            expediteur.envoyer(u["email"], textes.acces_reinitialise(u["nom_affiche"], lien))
+            u, lien, expire_le = cree
+            expediteur.envoyer(u["email"], textes.acces_reinitialise(u["nom_affiche"], lien, expire_le))
 
     def reinitialisation(s: Session, job: Job) -> None:
         u = _utilisateur_verrouille(s, job)
@@ -123,17 +134,18 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
         invalider_reinitialisations(s, u["id"])
         jeton = nouveau_jeton()
         maintenant = s.execute(select(func.now())).scalar_one()
+        expire_le = durees.expiration_reinitialisation(maintenant)
         s.execute(
             insert(REINITIALISATION).values(
                 id=uuid7(),
                 utilisateur_id=u["id"],
                 empreinte=empreinte(jeton),
                 cree_le=maintenant,
-                expire_le=durees.expiration_reinitialisation(maintenant),
+                expire_le=expire_le,
             )
         )
         lien = f"{url_publique.rstrip('/')}/reinitialisation#{jeton}"
-        expediteur.envoyer(u["email"], textes.reinitialisation(u["nom_affiche"], lien))
+        expediteur.envoyer(u["email"], textes.reinitialisation(u["nom_affiche"], lien, expire_le))
 
     def mot_de_passe_change(s: Session, job: Job) -> None:
         email, nom = _utilisateur(s, job.payload["utilisateur_id"])
@@ -142,17 +154,23 @@ def gestionnaires(expediteur: Expediteur, url_publique: str) -> dict[str, Gestio
         )
 
     def nouvel_appareil(s: Session, job: Job) -> None:
-        email, nom = _utilisateur(s, job.payload["utilisateur_id"])
+        email, nom, role = _utilisateur_et_role(s, job.payload["utilisateur_id"])
         cree_le = s.execute(
             select(APPAREIL.c.cree_le).where(APPAREIL.c.id == UUID(job.payload["appareil_id"]))
         ).scalar_one()
-        expediteur.envoyer(email, textes.nouvel_appareil(nom, cree_le))
+        expediteur.envoyer(email, textes.nouvel_appareil(nom, cree_le, role))
 
     def alerte_echecs(s: Session, job: Job) -> None:
         _, nom = _utilisateur(s, job.payload["utilisateur_id"])
         instant = datetime.fromisoformat(job.payload["instant"])
+        # job planifié avant l'ajout de « debut » : début de la fenêtre d'une heure
+        debut = (
+            datetime.fromisoformat(job.payload["debut"])
+            if "debut" in job.payload
+            else instant - PERIODE_ALERTE
+        )
         for email_gerant, nom_gerant in _gerants_actifs(s):
-            expediteur.envoyer(email_gerant, textes.alerte_echecs(nom_gerant, nom, instant))
+            expediteur.envoyer(email_gerant, textes.alerte_echecs(nom_gerant, nom, debut, instant))
 
     def alerte_compte_suspendu(s: Session, job: Job) -> None:
         _, nom = _utilisateur(s, job.payload["utilisateur_id"])

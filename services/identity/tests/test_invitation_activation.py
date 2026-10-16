@@ -208,8 +208,14 @@ def test_job_invitation__genere_jeton_stocke_empreinte_envoie_meme_transaction(
     gerant, uid, jeton, expediteur = _invite(fabrique)
     ((destinataire, courriel),) = expediteur.envoyes
     assert destinataire == EMAIL
-    assert courriel == invitation("Mme Durand", "M. Martin", f"{ORIGINE}/activation#{jeton}")
     (lien,) = lignes(fabrique, INVITATION, INVITATION.c.utilisateur_id == uid)
+    assert courriel == invitation(
+        "Mme Durand",
+        "M. Martin",
+        "associe",
+        f"{ORIGINE}/activation#{jeton}",
+        lien["expire_le"],  # type: ignore[arg-type]
+    )
     assert lien["empreinte"] == empreinte(jeton)
     assert lien["par_utilisateur_id"] == gerant.id
     assert lien["expire_le"] - lien["cree_le"] == timedelta(days=7)  # type: ignore[operator]

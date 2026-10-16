@@ -109,10 +109,10 @@ def test_demande__compte_actif__job_d_envoi_sans_jeton_stocke(fabrique: sessionm
     compte, jeton, expediteur = _lien(fabrique)
     (job,) = _jobs(fabrique, "courriel.reinitialisation")
     assert job["payload"] == {"utilisateur_id": str(compte.id)}
-    assert expediteur.envoyes == [
-        (EMAIL, reinitialisation("Mme Durand", f"{ORIGINE}/reinitialisation#{jeton}"))
-    ]
     (lien,) = lignes(fabrique, REINITIALISATION)
+    assert expediteur.envoyes == [
+        (EMAIL, reinitialisation("Mme Durand", f"{ORIGINE}/reinitialisation#{jeton}", lien["expire_le"]))  # type: ignore[arg-type]
+    ]
     assert lien["empreinte"] == empreinte(jeton)
     with fabrique() as s:
         for table in (JOB, JOURNAL):
@@ -205,13 +205,15 @@ def test_fin__sessions_appareils_et_tous_les_liens_revoques_email_info(
     fabrique: sessionmaker[Session],
 ) -> None:
     compte, jeton, expediteur = _lien(fabrique)
-    ancien = client(fabrique)
-    ancien.post("/auth/connexion", json={"email": EMAIL, "mot_de_passe": MOT_DE_PASSE})
-    ancien.post("/auth/code", json={"code": compte.code_totp(-30)})
-    assert ancien.get("/auth/verify").status_code == 200
+    # toutes les sessions ouvertes, sur deux appareils : « Tous vos appareils ont été déconnectés »
+    anciens = [client(fabrique, ip=ip) for ip in ("10.0.0.1", "10.0.0.2")]
+    for ancien, code in zip(anciens, (compte.code_totp(-30), compte.codes[0]), strict=True):
+        ancien.post("/auth/connexion", json={"email": EMAIL, "mot_de_passe": MOT_DE_PASSE})
+        assert ancien.post("/auth/code", json={"code": code}).status_code == 200
+        assert ancien.get("/auth/verify").status_code == 200
     assert _fin(client(fabrique), jeton, compte.code_totp()).status_code == 204
 
-    assert ancien.get("/auth/verify").status_code == 401
+    assert [ancien.get("/auth/verify").status_code for ancien in anciens] == [401, 401]
     sessions = lignes(fabrique, SESSION, SESSION.c.utilisateur_id == compte.id)
     assert sessions and all(s["revoquee_le"] is not None for s in sessions)
     assert {s["motif_revocation"] for s in sessions} <= {"reinitialisation", "rotation"}

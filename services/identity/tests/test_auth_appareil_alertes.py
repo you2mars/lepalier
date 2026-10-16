@@ -58,7 +58,27 @@ def test_appareil__connexion_complete_sans_cookie__email_info_et_cookie_1_an(
     assert job["payload"] == {"utilisateur_id": str(compte.id), "appareil_id": str(appareil["id"])}
     expediteur = ExpediteurMemoire()
     assert executer_jobs(fabrique, expediteur) == ["termine"]
-    assert expediteur.envoyes == [(compte.email, nouvel_appareil("Mme Durand", appareil["cree_le"]))]  # type: ignore[arg-type]
+    assert expediteur.envoyes == [
+        (compte.email, nouvel_appareil("Mme Durand", appareil["cree_le"], "associe"))
+    ]  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(("role", "nom"), [("gerant", "M. Martin"), ("operateur", "Mme Durand")])
+def test_appareil__email_selon_le_role__prevenir_le_gerant_sauf_s_il_est_le_destinataire(
+    fabrique: sessionmaker[Session], role: str, nom: str
+) -> None:
+    compte = creer_compte(fabrique, role=role, nom_affiche=nom)
+    assert _connexion_complete(client(fabrique), compte).status_code == 200
+    expediteur = ExpediteurMemoire()
+    executer_jobs(fabrique, expediteur)
+    ((_, courriel),) = expediteur.envoyes
+    (appareil,) = lignes(fabrique, APPAREIL, APPAREIL.c.utilisateur_id == compte.id)
+    assert courriel == nouvel_appareil(nom, appareil["cree_le"], role)  # type: ignore[arg-type]
+    assert courriel.corps.endswith(
+        "sur la page de connexion."
+        if role == "gerant"
+        else "sur la page de connexion, puis prévenez le gérant."
+    )
 
 
 def test_appareil__cookie_valide__pas_d_email_vu_le_mis_a_jour(fabrique: sessionmaker[Session]) -> None:
@@ -131,15 +151,22 @@ def test_alerte__20_echecs_dans_l_heure__email_aux_gerants_une_fois(fabrique: se
     _echecs(fabrique, compte.email, 21)
     (job,) = _jobs(fabrique, "courriel.alerte_echecs")
     assert job["payload"]["utilisateur_id"] == str(compte.id)  # type: ignore[index]
+    assert set(job["payload"]) == {"utilisateur_id", "debut", "instant"}  # type: ignore[call-overload]
     expediteur = ExpediteurMemoire()
     executer_jobs(fabrique, expediteur)
     instant = valeur(
         fabrique, select(UTILISATEUR.c.derniere_alerte_echecs_le).where(UTILISATEUR.c.id == compte.id)
     )
+    # début de l'intervalle : premier échec compté, inscrit au registre des tentatives
+    debut = valeur(
+        fabrique,
+        select(func.min(TENTATIVE_CONNEXION.c.cree_le)).where(TENTATIVE_CONNEXION.c.reussie.is_(False)),
+    )
+    assert debut < instant  # type: ignore[operator]
     assert sorted(expediteur.envoyes, key=lambda e: e[0]) == sorted(
         [
-            (martin.email, alerte_echecs("M. Martin", "Mme Durand", instant)),  # type: ignore[arg-type]
-            (leroy.email, alerte_echecs("Mme Leroy", "Mme Durand", instant)),  # type: ignore[arg-type]
+            (martin.email, alerte_echecs("M. Martin", "Mme Durand", debut, instant)),  # type: ignore[arg-type]
+            (leroy.email, alerte_echecs("Mme Leroy", "Mme Durand", debut, instant)),  # type: ignore[arg-type]
         ],
         key=lambda e: e[0],
     )

@@ -17,6 +17,7 @@
 
 ### Modifié
 - Livraison des événements : chaque événement relayé est marqué dès sa publication confirmée ; fenêtre de dédoublonnage des flux d'une heure. Garantie : au moins une fois dans le flux, exactement une fois en effet chez le consommateur grâce à son inbox.
+- E-mails de compte revus (16 octobre 2026) : fin du lien en date et heure de Paris, intervalle des essais de connexion, conseil « Mot de passe oublié » selon le rôle, rôle indiqué dans l'invitation ; rôles en mots partagés dans `contracts/libelles`.
 - Navigations du front toujours complètes, par le navigateur (le routeur de Next perdait parfois une navigation sous charge).
 
 ### Corrigé

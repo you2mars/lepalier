@@ -292,7 +292,7 @@ def _alerter_echecs(s: Session, u: Any, cle_compte: bytes, maintenant: datetime)
             s,
             "courriel.alerte_echecs",
             f"{u['id']}:{maintenant.isoformat()}",
-            payload={"utilisateur_id": u["id"], "instant": maintenant},
+            payload={"utilisateur_id": u["id"], "debut": min(echecs), "instant": maintenant},
         )
 
 

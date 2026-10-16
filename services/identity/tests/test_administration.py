@@ -484,7 +484,12 @@ def test_reinitialiser_acces__email_texte_valide_mot_pour_mot(fabrique: sessionm
     trouve = re.search(r"/activation#([A-Za-z0-9_-]{43})", courriel.corps)
     assert trouve is not None
     assert destinataire == cible.email
-    assert courriel == acces_reinitialise("Mme Durand", f"{ORIGINE}/activation#{trouve.group(1)}")
+    (lien,) = lignes(fabrique, INVITATION, INVITATION.c.utilisateur_id == cible.id)
+    assert courriel == acces_reinitialise(
+        "Mme Durand",
+        f"{ORIGINE}/activation#{trouve.group(1)}",
+        lien["expire_le"],  # type: ignore[arg-type]
+    )
 
 
 def test_reinitialiser_acces__son_propre_acces__refus_explicite(fabrique: sessionmaker[Session]) -> None:
