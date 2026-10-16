@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { EnvoiApresPriseEnMain } from "@/components/cadre/EnvoiApresPriseEnMain";
 import { SignalHydratation } from "@/components/cadre/SignalHydratation";
 import "./globals.css";
 
@@ -12,6 +13,9 @@ export const dynamic = "force-dynamic";
 export default function MiseEnPageRacine({ children }: { children: ReactNode }) {
   return (
     <html lang="fr">
+      <head>
+        <EnvoiApresPriseEnMain />
+      </head>
       <body>
         <SignalHydratation />
         {children}

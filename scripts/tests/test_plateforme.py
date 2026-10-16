@@ -1012,12 +1012,13 @@ def test_e2e__playwright_sur_le_vrai_front(plateforme: Plateforme) -> None:
     assert r.returncode == 0, (
         f"essais Playwright en échec : sortie complète ci-dessus, traces dans {resultats}/resultats"
     )
-    # formulaires envoyés avant la prise en main par React (avant-hydratation.spec.ts) : ni marqueur ni mot de
-    # passe dans le journal d'accès de nginx ; lignes des envois natifs affichées
+    # formulaires envoyés avant la prise en main (avant-hydratation.spec.ts, constat UX (18)) : aucun
+    # envoi natif par le navigateur (POST vers une page, donc vers le front), ni marqueur ni mot de passe dans
+    # le journal de nginx ; l'adresse journalisée est réécrite pour l'amont (/auth/connexion, pas /api/…)
     journal = plateforme.compose("logs", "--no-log-prefix", "nginx").stdout
-    print(
-        "\n".join(ligne for ligne in journal.splitlines() if '"m":"POST"' in ligne and "/api/" not in ligne)
-    )
+    lignes = journal.splitlines()
+    envois_natifs = [ligne for ligne in lignes if '"m":"POST"' in ligne and ':3000"' in ligne]
+    assert envois_natifs == []
     assert "MARQUEUR" not in journal
     assert MOT_DE_PASSE not in journal
 
