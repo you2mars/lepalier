@@ -109,3 +109,11 @@ def test_trace_id__trace_otel_prioritaire() -> None:
         attendu = format(span.get_span_context().trace_id, "032x")
         corps = CLIENT.get("/metier", headers={"X-Request-Id": "req-123"}).json()
     assert corps["trace_id"] == attendu
+
+
+def test_message_indisponible__texte_valide_mot_pour_mot() -> None:
+    """503 des appels d'API (service injoignable) : rien n'affirme que l'écriture n'a pas eu lieu (décision du
+    16 octobre 2026 : une 502 convertie en 503 peut survenir après l'envoi de la requête)."""
+    from commun.erreurs import MESSAGE_INDISPONIBLE
+
+    assert MESSAGE_INDISPONIBLE == "Le service est momentanément indisponible. Réessayez dans un instant."

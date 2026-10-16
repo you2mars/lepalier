@@ -61,20 +61,19 @@ describe("envoyer (écritures depuis le navigateur, via nginx)", () => {
     expect(await envoyer("/identity/auth/connexion", {})).toEqual({ ok: false, statut: 0, erreur: attendu });
   });
 
-  it("503 JSON de nginx (vérification d'identité en échec, service absent) : même message affiché qu'un 502", async () => {
-    // corps de @indisponible (deploy/nginx/reponses_json.conf)
+  it("503 JSON de nginx (vérification d'identité en échec, service absent) : refus comme un 502, message de commun affiché", async () => {
+    // corps de @indisponible (deploy/nginx/reponses_json.conf, texte de commun.erreurs.MESSAGE_INDISPONIBLE)
     const indisponible = {
       code: "service_indisponible",
-      message: "Une erreur inattendue est survenue. Réessayez dans quelques instants.",
+      message: "Le service est momentanément indisponible. Réessayez dans un instant.",
       details: {},
       trace_id: "t",
     };
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(502, "<html>", "text/html")));
-    const r502 = await envoyer("/identity/utilisateurs/inviter", {});
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reponse(503, indisponible)));
-    const r503 = await envoyer("/identity/utilisateurs/inviter", {});
-    if (r502.ok || r503.ok) throw new Error("réussite inattendue");
-    expect(r503.erreur.message).toBe(r502.erreur.message);
-    expect(r503.erreur.champs).toEqual(r502.erreur.champs);
+    expect(await envoyer("/identity/utilisateurs/inviter", {})).toEqual({
+      ok: false,
+      statut: 503,
+      erreur: { code: "service_indisponible", message: indisponible.message, champs: {} },
+    });
   });
 });
