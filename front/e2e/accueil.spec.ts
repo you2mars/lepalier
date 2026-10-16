@@ -1,7 +1,7 @@
 // Accueil « À faire » et cadre des écrans connectés (maquettes v3, écran 5 et § 0.2) : R0-03, R0-08, R0-20 à
 // R0-23 ; politique de sécurité vérifiée par aides.ts. Un gérant par projet (anti-rejeu TOTP).
 import { TEXTES } from "../src/textes";
-import { compteAccueil, expect, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
+import { compteAccueil, contenu, expect, sansDefilementHorizontal, seConnecter, test, verifierAccessibilite } from "./aides";
 
 test.describe("Accueil « À faire »", () => {
   test("sans session : Se connecter, sans message, page demandée gardée", async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe("Accueil « À faire »", () => {
     await expect(page).toHaveTitle("À faire — LePalier");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(TEXTES.accueil.titre);
     await expect(page.getByText(`M. Essai · ${TEXTES.cadre.role} ${TEXTES.roles.gerant}`)).toBeVisible();
-    await expect(page.getByText(TEXTES.accueil.videGestion)).toBeVisible();
+    await expect(contenu(page).getByText(TEXTES.accueil.videGestion)).toBeVisible();
     const menu = page.getByRole("navigation");
     await expect(menu.getByRole("link", { name: TEXTES.cadre.aFaire })).toHaveAttribute("aria-current", "page");
     await expect(menu.getByRole("link", { name: TEXTES.cadre.administration })).toBeVisible();
@@ -63,6 +63,6 @@ test.describe("Accueil « À faire »", () => {
     // « Précédent » : aucune page connectée ne s'affiche
     await page.goBack();
     await expect(page.getByRole("heading", { level: 1 })).not.toHaveText(TEXTES.accueil.titre);
-    await expect(page.getByText(TEXTES.accueil.videGestion)).toHaveCount(0);
+    await expect(contenu(page).getByText(TEXTES.accueil.videGestion)).toHaveCount(0);
   });
 });

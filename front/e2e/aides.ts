@@ -28,6 +28,13 @@ export async function pret(page: Page): Promise<void> {
   await page.locator("html[data-hydrate]").waitFor({ state: "attached" });
 }
 
+// contenu de la page connectée : quand la page arrive en flux (squelette de loading.tsx d'abord), React l'envoie dans
+// un bloc caché <div hidden id="S:…"> hors de <main id="contenu">, puis un script ($RC) l'y déplace ; pendant ce
+// passage, un getByText sur toute la page a trouvé le texte deux fois (essai du 15 octobre 2026)
+export function contenu(page: Page) {
+  return page.locator("#contenu");
+}
+
 export const test = base.extend<{ violationsCsp: string[]; sessionAdmin: RoleAdmin | undefined }>({
   sessionAdmin: [undefined, { option: true }],
   // chaque page.goto attend la prise en main de la page par React (sauf about:blank)
